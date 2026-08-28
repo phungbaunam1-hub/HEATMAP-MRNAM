@@ -151,6 +151,13 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
 .hbar{display:flex;height:6px;border-radius:1px;overflow:hidden;background:#101a24;margin-top:6px}
 .hbar i{display:block;height:100%;background:var(--grn)}
 .hbar u{display:block;height:100%;background:var(--red)}
+.sg{border-left:3px solid;padding:4px 6px;background:var(--panel2);border-radius:2px;margin-bottom:3px;
+  font-size:8.5px;line-height:1.5}
+.sg .r1{display:flex;justify-content:space-between;gap:5px;align-items:baseline}
+.sg .r1 b{font-size:9.5px;letter-spacing:.05em}
+.sg .r2{color:var(--dim);font-variant-numeric:tabular-nums}
+.sg .bd{font-size:7.5px;letter-spacing:.08em;padding:1px 4px;border-radius:2px;border:1px solid}
+.sg .rr{font-variant-numeric:tabular-nums;font-weight:600}
 .zr{border-left:3px solid;padding:3px 6px;background:var(--panel2);border-radius:2px;margin-bottom:3px}
 .zr b{font-size:9.5px;color:var(--hi);font-variant-numeric:tabular-nums}
 .zr span{display:block;font-size:8px;color:var(--dim)}
@@ -382,6 +389,8 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
             <option value="10" selected>Futures taker 5bp</option>
             <option value="20">Spot taker 10bp</option>
             <option value="30">Spot + trượt giá</option></select></span>
+        <span class="thr">ĐỦ <input type="number" id="minCond" value="3" min="2" max="9" step="1" style="width:36px">/9 ĐK</span>
+        <span class="thr">HẠN <input type="number" id="validMin" value="20" min="3" step="5" style="width:40px">p</span>
         <span class="thr">R TỐI THIỂU <input type="number" id="minRIn" value="1.15" step="0.05" style="width:44px"></span>
         <button class="btn" id="testEntry" style="padding:3px 7px">TEST VÀO LỆNH</button>
       </div></div>
@@ -400,6 +409,9 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
         <div id="tpoEvents"></div>
         <div class="sechd2">VÙNG CUNG CẦU</div>
         <div id="tpoZones"></div>
+        <div class="sechd2">LỊCH SỬ TÍN HIỆU</div>
+        <div id="sigStat" style="font-size:9px;color:var(--dim);margin-bottom:3px">—</div>
+        <div id="sigList" style="max-height:210px;overflow-y:auto"></div>
         <div class="sechd2">CHẶN VÀO LỆNH</div>
         <div class="diagbox" id="diagbox" style="grid-column:auto"></div>
         <div class="sechd2">NHẬT KÝ LỆNH</div>
@@ -1284,18 +1296,21 @@ function paperTrade(){
   var cool=Date.now()-S.lastCloseTs>90000;
   var nv=enabled().length;
   var dispOk = nv<2 || S.disp<DISP_MAX;
-  var setupOk = !!(st&&st.ok);
-  var rrOk = setupOk && st.rr>=1.4;
+  var sig=activeSignal();
+  var setupOk=!!sig;
+  var rrOk = setupOk && sig.rr>=1.4;
   var costOk=false, netR=null;
   if(setupOk){
-    var risk=Math.abs(st.entry-st.sl)/p, rew=Math.abs(st.tp-st.entry)/p, c=FEE_BP/10000;
+    var risk=Math.abs(sig.entry-sig.sl)/p, rew=Math.abs(sig.tp-sig.entry)/p, c=FEE_BP/10000;
     netR=(rew-c)/(risk+c); S.netR=netR; costOk=netR>MIN_R;
   }
   var notional=CAPITAL*0.08;
   S.blockers=[
-    {k:'CÓ SETUP THEO HÀNH VI', ok:setupOk, v: setupOk? (st.side>0?'MUA · ':'BÁN · ')+st.score+'/9'
-        : (st? (st.zone?'đủ '+st.score+'/9':'giá chưa vào vùng') : 'đang dựng')},
-    {k:'R:R ≥ 1.4',            ok:rrOk,  v: setupOk? st.rr.toFixed(2):'—'},
+    {k:'CÓ TÍN HIỆU CÒN HẠN', ok:setupOk,
+     v: setupOk? (sig.side>0?'MUA · ':'BÁN · ')+sig.score+'/9 · còn '+
+          Math.max(0,Math.ceil((sig.expire-Date.now())/60000))+'p'
+        : (st&&st.zone? 'mới '+st.score+'/'+TPO.minCond+' điều kiện' : 'giá chưa vào vùng quan sát')},
+    {k:'R:R ≥ 1.4',            ok:rrOk,  v: setupOk? sig.rr.toFixed(2):'—'},
     {k:'R RÒNG > '+MIN_R.toFixed(2), ok:costOk, v: netR!=null? netR.toFixed(2):'—'},
     {k:'ĐANG FLAT',            ok:!S.pos, v:S.pos?'đang có lệnh':'có'},
     {k:'HẾT COOLDOWN',         ok:cool,  v:cool?'ok':Math.ceil((90000-(Date.now()-S.lastCloseTs))/1000)+'s'},
@@ -1306,9 +1321,12 @@ function paperTrade(){
   S.blockReason=fails.map(function(b){return b.k;}).join(', ');
 
   if(!fails.length){
-    S.pos={side:st.side,px:p,notional:notional,t:Date.now(),sl:st.sl,tp:st.tp,story:st.story};
-    pushLog(st.side>0?'OPEN L':'OPEN S',
-      st.zone.src+' · '+st.score+'/9 · SL '+pxs(st.sl)+' TP '+pxs(st.tp)+' (R:R '+st.rr.toFixed(2)+')', null);
+    sig.taken=true;
+    S.pos={side:sig.side,px:p,notional:notional,t:Date.now(),sl:sig.sl,tp:sig.tp,
+           story:sig.story,sigId:sig.id};
+    pushLog(sig.side>0?'OPEN L':'OPEN S',
+      '#'+sig.id+' · '+sig.zone+' · '+sig.score+'/9 · SL '+pxs(sig.sl)+' TP '+pxs(sig.tp)+
+      ' (R:R '+sig.rr.toFixed(2)+')', null);
   } else if(setupOk && !S.pos){
     if(Date.now()-(S.lastBlockLog||0)>20000){
       S.lastBlockLog=Date.now();
@@ -1914,6 +1932,10 @@ document.getElementById('feeSel').addEventListener('change',function(e){
 });
 
 document.getElementById('minRIn').addEventListener('input',function(e){ MIN_R=Math.max(0.5,+e.target.value||1.15); });
+document.getElementById('minCond').addEventListener('input',function(e){
+  TPO.minCond=clamp(+e.target.value||3,2,9); });
+document.getElementById('validMin').addEventListener('input',function(e){
+  TPO.validMin=Math.max(3,+e.target.value||20); });
 
 
 setInterval(function(){ if(S.ai.auto && !S.ai.busy) callAI(); },60000);
@@ -2839,6 +2861,7 @@ var TPO={
   mode:'30', profiles:[], daily:null, zones:[], events:[], setup:null,
   q:{hang:0,tien:0,phase:'—',note:''}, tick:0,
   srcBars:null, srcMin:1, loading:false,
+  signals:[], minCond:3, validMin:20, sigId:1, lastSigTs:0,
   i0:0, i1:0, drag:null, moved:false          // khung nhìn cuộn/zoom
 };
 // khung TPO -> [chu kỳ mỗi cây (ms), độ phân giải nến nguồn (phút)]
@@ -3252,8 +3275,8 @@ function buildSetup(){
   C.push({k:'CVD PHÂN KỲ ỦNG HỘ', ok:cvdDiv, v:cvdTxt});
 
   var score=C.filter(function(x){return x.ok;}).length;
-  var must = (stops||bong) && vaOk;      // bắt buộc: có lấy thanh khoản hoặc có bị nuốt
-  var ok = must && score>=5;
+  var must = vaOk;                        // chỉ cấm khi bối cảnh TPO đi ngược
+  var ok = must && score>=TPO.minCond;
 
   // SL đặt sau cực trị vừa quét, TP ở vùng đối diện gần nhất
   var ext = wantUp? Math.min.apply(null,w.slice(-12).map(function(x){return x.l;}))
@@ -3280,8 +3303,62 @@ function buildSetup(){
 
   TPO.setup={ ok:ok, side:side, checks:C, score:score, zone:z,
     entry:px, sl:sl, tp:tp, rr:rr, story:story,
-    why: ok? story : (!must? 'Thiếu điều kiện bắt buộc: phải có STOPS hoặc BÓNG bị nuốt, và bối cảnh TPO không ngược.'
-                            : 'Mới '+score+'/9 điều kiện — chưa đủ để trả giá.') };
+    why: ok? story : (!must? 'Bối cảnh TPO đang đi ngược hướng vùng này — không trả giá.'
+                            : 'Mới '+score+'/9 điều kiện, cần '+TPO.minCond+'.') };
+  if(ok) trySignal(TPO.setup);
+}
+
+/* ============ SỔ TÍN HIỆU: sinh ra, còn hạn, kết thúc ============
+   Trước đây setup được dựng lại mỗi giây nên nhìn như chớp nháy.
+   Giờ mỗi tín hiệu là một bản ghi có tuổi thọ, tự theo dõi tới TP/SL/hết hạn. */
+function trySignal(st){
+  var now=Date.now();
+  // đã có tín hiệu còn sống cùng chiều -> không sinh thêm
+  var live=TPO.signals.filter(function(x){ return x.status==='RUN'; });
+  if(live.some(function(x){ return x.side===st.side; })) return;
+  if(now-TPO.lastSigTs < 120000) return;             // giãn cách 2 phút
+  var risk=Math.abs(st.entry-st.sl); if(!risk) return;
+  TPO.lastSigTs=now;
+  TPO.signals.unshift({
+    id:TPO.sigId++, ts:now, side:st.side, score:st.score, entry:st.entry,
+    sl:st.sl, tp:st.tp, rr:st.rr, risk:risk, zone:st.zone? st.zone.src:'—',
+    story:st.story, checks:st.checks.map(function(c){return {k:c.k,ok:c.ok};}),
+    status:'RUN', expire:now+TPO.validMin*60000, r:0, mfe:0, mae:0, taken:false, closedAt:0
+  });
+  if(TPO.signals.length>60) TPO.signals.pop();
+  pushLog(st.side>0?'TÍN HIỆU MUA':'TÍN HIỆU BÁN',
+    st.score+'/9 · '+(st.zone?st.zone.src:'')+' · vào '+pxs(st.entry)+
+    ' SL '+pxs(st.sl)+' TP '+pxs(st.tp)+' · hạn '+TPO.validMin+'p', null);
+}
+function updateSignals(){
+  var px=S.lastPx, now=Date.now();
+  if(!px) return;
+  TPO.signals.forEach(function(x){
+    if(x.status!=='RUN') return;
+    var mv=x.side*(px-x.entry);
+    x.r=mv/x.risk;
+    if(x.r>x.mfe) x.mfe=x.r;
+    if(x.r<x.mae) x.mae=x.r;
+    var hitTP = x.side>0? px>=x.tp : px<=x.tp;
+    var hitSL = x.side>0? px<=x.sl : px>=x.sl;
+    if(hitTP){ x.status='WIN';  x.r=Math.abs(x.tp-x.entry)/x.risk; x.closedAt=now; }
+    else if(hitSL){ x.status='LOSS'; x.r=-1; x.closedAt=now; }
+    else if(now>x.expire){ x.status='EXP'; x.closedAt=now; }
+  });
+}
+function signalStats(){
+  var w=0,l=0,e=0,run=0,sumR=0;
+  TPO.signals.forEach(function(x){
+    if(x.status==='RUN'){ run++; return; }
+    sumR+=x.r;
+    if(x.status==='WIN') w++; else if(x.status==='LOSS') l++; else e++;
+  });
+  var done=w+l+e;
+  return {w:w,l:l,e:e,run:run,done:done,sumR:sumR,
+          win: (w+l)? w/(w+l):0, avgR: done? sumR/done:0};
+}
+function activeSignal(){
+  return TPO.signals.filter(function(x){ return x.status==='RUN' && !x.taken; })[0]||null;
 }
 
 function tpoTick(){
@@ -3289,6 +3366,7 @@ function tpoTick(){
   try{ detectEvents(); }catch(e){}
   try{ answerFour(); }catch(e){}
   try{ buildSetup(); }catch(e){}
+  try{ updateSignals(); }catch(e){}
 }
 
 /* ---------- vẽ dải TPO ---------- */
@@ -3495,6 +3573,47 @@ function renderTPO(){
       '<div style="font-size:8px;color:#3d5266;display:flex;justify-content:space-between">'+
       '<span style="color:var(--grn)">gom hàng '+(q.hang*100).toFixed(0)+'%</span>'+
       '<span style="color:var(--red)">nhả hàng '+(q.tien*100).toFixed(0)+'%</span></div>';
+  }
+  var sl=document.getElementById('sigList');
+  if(sl){
+    var now=Date.now();
+    sl.innerHTML = TPO.signals.length? TPO.signals.slice(0,14).map(function(x){
+      var buy=x.side>0;
+      var col=buy?'var(--grn)':'var(--red)';
+      var badge, bcol;
+      if(x.status==='RUN'){
+        var left=Math.max(0,Math.ceil((x.expire-now)/60000));
+        badge='CÒN HẠN '+left+'p'; bcol='var(--amb)';
+      } else if(x.status==='WIN'){ badge='ĐẠT TP'; bcol='var(--grn)'; }
+      else if(x.status==='LOSS'){ badge='DÍNH SL'; bcol='var(--red)'; }
+      else { badge='HẾT HẠN'; bcol='#5b7186'; }
+      var rcol = x.r>0.02?'var(--grn)':(x.r<-0.02?'var(--red)':'var(--dim)');
+      var d0=new Date(x.ts);
+      var hhmm=String(d0.getHours()).padStart(2,'0')+':'+String(d0.getMinutes()).padStart(2,'0');
+      return '<div class="sg" style="border-left-color:'+col+'">'+
+        '<div class="r1"><b style="color:'+col+'">#'+x.id+' '+(buy?'MUA':'BÁN')+'</b>'+
+        '<span class="bd" style="color:'+bcol+';border-color:'+bcol+'">'+badge+'</span>'+
+        '<span class="rr" style="color:'+rcol+'">'+(x.r>=0?'+':'')+x.r.toFixed(2)+'R</span></div>'+
+        '<div class="r2">'+hhmm+' · '+x.score+'/9 · vào '+pxs(x.entry)+
+        ' · SL '+pxs(x.sl)+' · TP '+pxs(x.tp)+
+        (x.taken?' · <span style="color:var(--amb)">ĐÃ VÀO LỆNH</span>':'')+'</div>'+
+        '<div class="r2" style="color:#3d5266">'+x.zone+
+        (x.status==='RUN'? ' · cao nhất +'+x.mfe.toFixed(2)+'R / thấp nhất '+x.mae.toFixed(2)+'R':'')+
+        '</div></div>';
+    }).join('') : '<div style="font-size:9px;color:#3d5266">chưa có tín hiệu nào</div>';
+  }
+  var ss=document.getElementById('sigStat');
+  if(ss){
+    var t=signalStats();
+    ss.innerHTML = t.done||t.run?
+      ('<b style="color:var(--hi)">'+TPO.signals.length+' tín hiệu</b> · '+
+       '<span style="color:var(--amb)">'+t.run+' còn hạn</span> · '+
+       '<span style="color:var(--grn)">'+t.w+' đạt TP</span> · '+
+       '<span style="color:var(--red)">'+t.l+' dính SL</span> · '+t.e+' hết hạn<br>'+
+       'thắng '+(t.win*100).toFixed(0)+'% · trung bình '+(t.avgR>=0?'+':'')+t.avgR.toFixed(2)+'R · '+
+       'tổng <b style="color:'+(t.sumR>=0?'var(--grn)':'var(--red)')+'">'+
+       (t.sumR>=0?'+':'')+t.sumR.toFixed(2)+'R</b>')
+      : 'chưa có tín hiệu — chờ giá về vùng quan sát';
   }
   var z=document.getElementById('tpoZones');
   if(z){
