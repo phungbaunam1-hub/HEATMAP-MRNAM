@@ -91,7 +91,7 @@ input{width:190px}
 .pxtag .d{font-size:11px;margin-left:6px}
 
 /* heatmap gộp */
-.hmgrid{display:grid;grid-template-columns:1fr 214px;height:330px}
+.hmgrid{display:grid;grid-template-columns:1fr 232px;height:400px}
 .hmwrap{border-right:1px solid var(--line2)}
 .hmside{padding:6px;display:flex;flex-direction:column;gap:5px;overflow:hidden}
 .wall{border:1px solid var(--line);border-left-width:3px;border-radius:2px;padding:4px 6px;background:var(--panel2)}
@@ -324,6 +324,17 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
       <div class="chside">
         <div class="sechd">KHUNG THỜI GIAN</div>
         <div class="tfbar" id="tfbar"></div>
+        <div class="sechd">LỚP HIỂN THỊ</div>
+        <div class="tfbar" id="layerTog"></div>
+        <div class="indp" style="margin-top:4px">
+          <label>chu kỳ TPO
+            <select id="chTpoP" style="font-size:9px;padding:2px 3px">
+              <option value="900000">M15</option><option value="1800000" selected>M30</option>
+              <option value="3600000">H1</option><option value="14400000">H4</option>
+              <option value="86400000">NGÀY</option><option value="604800000">TUẦN</option>
+            </select></label>
+          <label>gộp <input type="number" id="chMergeN" value="5" min="2" max="30" style="width:38px"> cây</label>
+        </div>
         <div class="sechd">LỚP ORDER FLOW</div>
         <div class="tfbar" id="fpTog"></div>
         <div class="sechd">NGƯỠNG HIỆN LỆNH LỚN</div>
@@ -349,12 +360,45 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
     </div>
   </div>
 
+  <!-- NGUỒN DỮ LIỆU & API -->
+  <div class="p c12">
+    <div class="ph"><span class="dot" style="background:var(--cyn);box-shadow:0 0 6px var(--cyn)"></span>
+      <h2>NGUỒN DỮ LIỆU · SÀN &amp; API</h2>
+      <div class="tags"><span class="tag c" id="srcCount">—</span></div></div>
+    <div style="padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <div class="sechd2">SÀN CÓ WEBSOCKET CÔNG KHAI · KHÔNG CẦN KEY</div>
+        <div class="tfbar" id="exList" style="margin-top:5px"></div>
+        <div id="exStat" style="margin-top:8px"></div>
+        <div style="font-size:8px;color:#3d5266;line-height:1.55;margin-top:6px">
+          Bấm để bật/tắt từng sàn. Mỗi sàn bật thêm là một kết nối WebSocket riêng —
+          bật quá nhiều sẽ nặng máy và dễ chạm giới hạn tần suất. Khuyến nghị 3–5 sàn thanh khoản nhất.
+        </div>
+      </div>
+      <div>
+        <div class="sechd2">NGUỒN CẦN API KEY · QUA GATEWAY</div>
+        <div id="apiList" style="display:flex;flex-direction:column;gap:4px;margin-top:5px"></div>
+        <div class="indp" style="margin-top:5px">
+          <label>gateway <input id="gwUrl" value="http://127.0.0.1:8080" style="width:170px"></label>
+          <button class="btn" id="apiSave" style="padding:4px 8px">LƯU</button>
+        </div>
+        <div style="font-size:8px;color:#3d5266;line-height:1.55;margin-top:5px">
+          Key lưu trong trình duyệt của bạn và chỉ gửi tới gateway chạy trên máy bạn —
+          không bao giờ gửi thẳng tới sàn từ trang này.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- HEATMAP GỘP -->
   <div class="p c12">
     <div class="ph"><span class="dot" style="background:var(--amb);box-shadow:0 0 6px var(--amb)"></span>
       <h2>CONSOLIDATED DEPTH HEATMAP · GỘP SỔ LỆNH NHIỀU SÀN</h2>
       <div class="tags" id="hmChips"></div>
       <div class="tags">
+        <span class="thr">ĐẬM <input type="range" id="hmGamma" min="0.15" max="1" step="0.05" value="0.42" style="width:70px"></span>
+        <span class="thr">TỐI THIỂU $<input type="number" id="hmMin" value="0" step="5000" style="width:66px"></span>
+        <span class="vchip on" id="hmIce" title="đánh dấu mức nghi có iceberg">ICEBERG</span>
         <select id="hmRange" style="font-size:9px;padding:2px 4px">
           <option value="0.001">±0.10%</option>
           <option value="0.003" selected>±0.30%</option>
@@ -368,6 +412,8 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
       <div class="hmside">
         <div style="font-size:8px;letter-spacing:.1em;color:var(--dim)">TƯỜNG LỆNH LỚN NHẤT</div>
         <div id="walls" style="display:flex;flex-direction:column;gap:4px"></div>
+        <div style="font-size:8px;letter-spacing:.1em;color:var(--dim);margin-top:4px">NGHI VẤN ICEBERG</div>
+        <div id="iceList" style="display:flex;flex-direction:column;gap:3px"></div>
         <div class="hmhint">Nhấp vào tên sàn ở tiêu đề để bật/tắt. Dữ liệu vẫn được thu thập khi tắt,
           chỉ ẩn khỏi phần hiển thị và khỏi factor imbalance.</div>
       </div>
@@ -392,6 +438,8 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
         <span class="thr">ĐỦ <input type="number" id="minCond" value="3" min="2" max="9" step="1" style="width:36px">/9 ĐK</span>
         <span class="thr">HẠN <input type="number" id="validMin" value="20" min="3" step="5" style="width:40px">p</span>
         <span class="thr">R TỐI THIỂU <input type="number" id="minRIn" value="1.15" step="0.05" style="width:44px"></span>
+        <span class="vchip on" id="gCost" title="bật/tắt bộ lọc R ròng sau phí">LỌC PHÍ</span>
+        <span class="vchip on" id="gRR" title="bật/tắt yêu cầu R:R ≥ 1.4">LỌC R:R</span>
         <button class="btn" id="testEntry" style="padding:3px 7px">TEST VÀO LỆNH</button>
       </div></div>
     <div style="padding:0 8px 6px;font-size:9px;color:var(--dim)" id="tpoDaily">—</div>
@@ -530,15 +578,38 @@ var DPR=Math.min(window.devicePixelRatio||1,2);
 
 /* ================= sàn ================= */
 var EX={
-  binance:{n:'BINANCE',c:'#f0b90b',on:true,live:false,ws:null,mode:'snap'},
-  bybit:  {n:'BYBIT',  c:'#ff8a3d',on:true,live:false,ws:null,mode:'delta'},
-  okx:    {n:'OKX',    c:'#2ee6ff',on:true,live:false,ws:null,mode:'delta'},
-  gate:   {n:'GATE.IO',c:'#b06cff',on:true,live:false,ws:null,mode:'snap'}
+  binance: {n:'BINANCE', c:'#f0b90b',on:true, live:false,ws:null},
+  bybit:   {n:'BYBIT',   c:'#ff8a3d',on:true, live:false,ws:null},
+  okx:     {n:'OKX',     c:'#2ee6ff',on:true, live:false,ws:null},
+  gate:    {n:'GATE.IO', c:'#b06cff',on:true, live:false,ws:null},
+  bitget:  {n:'BITGET',  c:'#41e0c1',on:true, live:false,ws:null},
+  mexc:    {n:'MEXC',    c:'#3d7bff',on:false,live:false,ws:null},
+  kraken:  {n:'KRAKEN',  c:'#a78bfa',on:false,live:false,ws:null},
+  coinbase:{n:'COINBASE',c:'#1652f0',on:false,live:false,ws:null},
+  bitfinex:{n:'BITFINEX',c:'#7bd950',on:false,live:false,ws:null},
+  hyper:   {n:'HYPERLIQ',c:'#ff4fb2',on:false,live:false,ws:null},
+  kucoin:  {n:'KUCOIN',  c:'#24d6a3',on:false,live:false,ws:null}
 };
 var EXK=Object.keys(EX);
 
 /* ================= danh mục cặp ================= */
-function S_(id,label,grp,b,by,o,g){ return {id:id,label:label,grp:grp,binance:b,bybit:by,okx:o,gate:g}; }
+function S_(id,label,grp,b,by,o,g){
+  // suy ra mã cho các sàn khác từ mã Binance (BTCUSDT -> BTC + USDT)
+  var base=null, quote='USDT';
+  if(b){ base=b.replace(/USDT$/,''); }
+  else if(by){ base=by.replace(/USDT$/,''); }
+  var o2={id:id,label:label,grp:grp,binance:b,bybit:by,okx:o,gate:g};
+  if(base){
+    o2.bitget   = base+'USDT';
+    o2.mexc     = base+'USDT';
+    o2.kraken   = base+'/USD';
+    o2.coinbase = base+'-USD';
+    o2.bitfinex = 't"'+base+'USD"';
+    o2.hyper    = base;
+    o2.kucoin   = base+'-USDT';
+  }
+  return o2;
+}
 var SYMS=[
   S_('BTCUSDT','BTC / USDT','Crypto majors','BTCUSDT','BTCUSDT','BTC-USDT','BTC_USDT'),
   S_('ETHUSDT','ETH / USDT','Crypto majors','ETHUSDT','ETHUSDT','ETH-USDT','ETH_USDT'),
@@ -567,7 +638,9 @@ SYMS.push({id:'GC',label:'GC — COMEX gold future',grp:'Vàng (qua cầu nối)
 var SYM=SYMS[0];
 
 /* ================= state ================= */
+var HM_GAMMA=0.42, HM_MIN=0, HM_ICE=true;
 var CAPITAL=100000, FEE_BP=10, MAX_EXP=0.25, HM_RANGE=0.0030, DISP_MAX=0.0025;
+var GATE_COST=true, GATE_RR=true;   // bật/tắt bộ lọc phí và R:R
 var TP_MULT=2.2, SL_MULT=1.1, MIN_R=1.15, SIG_TF=15;   // SIG_TF: số phút mỗi nến tín hiệu
 var REGIMES=['TR+','TR-','CHOP','SQZ','BRK','SHK'];
 var S={
@@ -635,6 +708,9 @@ function enabled(){ return EXK.filter(function(k){ return EX[k].on && EX[k].live
 /* ================= ingest ================= */
 function onTrade(ex,px,qty,side,ts){
   if(!EX[ex].on) return;
+  var e0=EX[ex];
+  e0.tk=(e0.tk||0)+1; e0.vol=(e0.vol||0)+px*qty; e0.lastTrade=Date.now();
+  if(ts) e0.lat=clamp(Date.now()-ts,0,9999);
   S.lastPx=px; S.tapeTicks++;
   var n=px*qty;
   side==='buy'? S.buyV+=n : S.sellV+=n;
@@ -667,6 +743,7 @@ function setFeed(){
   if(ok) hideErr();
 }
 function mkWS(ex,url,onOpen,onMsg){
+  if(!EX[ex].on){ EX[ex].live=false; return; }
   if(!SYM[ex] && !SYM.bridge){ EX[ex].live=false; return; }
   var w;
   try{ w=new WebSocket(url); }catch(e){ EX[ex].live=false; return; }
@@ -748,11 +825,158 @@ function connectGate(){
     }
   });
 }
+
+/* ---------- các sàn bổ sung (WebSocket công khai, không cần key) ---------- */
+function connectBitget(){
+  var sym=SYM.bitget; if(!sym) return;
+  mkWS('bitget','wss://ws.bitget.com/v2/ws/public',function(w){
+    w.send(JSON.stringify({op:'subscribe',args:[
+      {instType:'SPOT',channel:'books15',instId:sym},
+      {instType:'SPOT',channel:'trade',instId:sym}]}));
+    EX.bitget.hb=setInterval(function(){ if(w.readyState===1) w.send('ping'); },25000);
+  },function(raw){
+    var t=raw.toString(); if(t==='pong') return;
+    var m=JSON.parse(t); if(!m.arg||!m.data) return;
+    if(m.arg.channel==='trade')
+      m.data.forEach(function(x){ onTrade('bitget',+x.price,+x.size,x.side==='buy'?'buy':'sell',+x.ts); });
+    else if(m.arg.channel.indexOf('books')===0){
+      var d=m.data[0]; if(!d) return;
+      getBook('bitget').snap(d.bids,d.asks); refreshQuote('bitget');
+    }
+  });
+}
+function connectMexc(){
+  var sym=SYM.mexc; if(!sym) return;
+  mkWS('mexc','wss://wbs-api.mexc.com/ws',function(w){
+    w.send(JSON.stringify({method:'SUBSCRIPTION',params:[
+      'spot@public.aggre.deals.v3.api.pb@100ms@'+sym,
+      'spot@public.limit.depth.v3.api.pb@'+sym+'@20']}));
+    EX.mexc.hb=setInterval(function(){ if(w.readyState===1)
+      w.send(JSON.stringify({method:'PING'})); },20000);
+  },function(raw){
+    var m=JSON.parse(raw.toString());
+    if(m.d && m.d.deals) m.d.deals.forEach(function(x){
+      onTrade('mexc',+x.p,+x.v,x.S===1?'buy':'sell',+x.t); });
+    if(m.d && m.d.bids && m.d.asks){
+      getBook('mexc').snap(m.d.bids.map(function(x){return [x.p,x.v];}),
+                           m.d.asks.map(function(x){return [x.p,x.v];}));
+      refreshQuote('mexc');
+    }
+  });
+}
+function connectKraken(){
+  var sym=SYM.kraken; if(!sym) return;
+  mkWS('kraken','wss://ws.kraken.com/v2',function(w){
+    w.send(JSON.stringify({method:'subscribe',params:{channel:'book',symbol:[sym],depth:25}}));
+    w.send(JSON.stringify({method:'subscribe',params:{channel:'trade',symbol:[sym]}}));
+  },function(raw){
+    var m=JSON.parse(raw.toString());
+    if(m.channel==='trade'&&m.data)
+      m.data.forEach(function(x){ onTrade('kraken',+x.price,+x.qty,x.side,Date.parse(x.timestamp)); });
+    if(m.channel==='book'&&m.data&&m.data[0]){
+      var d=m.data[0], bk=getBook('kraken');
+      var bd=(d.bids||[]).map(function(x){return [x.price,x.qty];});
+      var ad=(d.asks||[]).map(function(x){return [x.price,x.qty];});
+      m.type==='snapshot'? bk.snap(bd,ad) : bk.delta(bd,ad);
+      refreshQuote('kraken');
+    }
+  });
+}
+function connectCoinbase(){
+  var sym=SYM.coinbase; if(!sym) return;
+  mkWS('coinbase','wss://ws-feed.exchange.coinbase.com',function(w){
+    w.send(JSON.stringify({type:'subscribe',product_ids:[sym],
+      channels:['matches',{name:'ticker',product_ids:[sym]}]}));
+  },function(raw){
+    var m=JSON.parse(raw.toString());
+    if(m.type==='match') onTrade('coinbase',+m.price,+m.size,m.side==='sell'?'buy':'sell',Date.parse(m.time));
+    if(m.type==='ticker'&&m.best_bid&&m.best_ask){
+      S.quotes.coinbase={bid:+m.best_bid,ask:+m.best_ask,ts:Date.now()};
+    }
+  });
+}
+function connectBitfinex(){
+  var sym=SYM.bitfinex; if(!sym) return;
+  var plain=sym.replace(/"/g,'');
+  mkWS('bitfinex','wss://api-pubsub.bitfinex.com/ws/2',function(w){
+    w.send(JSON.stringify({event:'subscribe',channel:'trades',symbol:plain}));
+    w.send(JSON.stringify({event:'subscribe',channel:'book',symbol:plain,prec:'P0',len:'25'}));
+  },function(raw){
+    var m=JSON.parse(raw.toString());
+    if(!Array.isArray(m)) return;
+    var payload=m[1];
+    if(m[1]==='te'&&Array.isArray(m[2])){
+      var t=m[2];  // [id, ts, amount, price]
+      onTrade('bitfinex',+t[3],Math.abs(+t[2]),(+t[2])>0?'buy':'sell',+t[1]);
+    } else if(Array.isArray(payload)&&Array.isArray(payload[0])){
+      var bk=getBook('bitfinex'), bd=[], ad=[];
+      payload.forEach(function(l){         // [price, count, amount]
+        if(+l[1]===0) return;
+        (+l[2]>0? bd:ad).push([l[0],Math.abs(+l[2])]);
+      });
+      if(bd.length||ad.length){ bk.snap(bd,ad); refreshQuote('bitfinex'); }
+    }
+  });
+}
+function connectHyper(){
+  var coin=SYM.hyper; if(!coin) return;
+  mkWS('hyper','wss://api.hyperliquid.xyz/ws',function(w){
+    w.send(JSON.stringify({method:'subscribe',subscription:{type:'l2Book',coin:coin}}));
+    w.send(JSON.stringify({method:'subscribe',subscription:{type:'trades',coin:coin}}));
+    EX.hyper.hb=setInterval(function(){ if(w.readyState===1)
+      w.send(JSON.stringify({method:'ping'})); },30000);
+  },function(raw){
+    var m=JSON.parse(raw.toString());
+    if(m.channel==='trades'&&m.data)
+      m.data.forEach(function(x){ onTrade('hyper',+x.px,+x.sz,x.side==='B'?'buy':'sell',+x.time); });
+    if(m.channel==='l2Book'&&m.data&&m.data.levels){
+      var L=m.data.levels;
+      getBook('hyper').snap(L[0].map(function(x){return [x.px,x.sz];}),
+                            L[1].map(function(x){return [x.px,x.sz];}));
+      refreshQuote('hyper');
+    }
+  });
+}
+function connectKucoin(){
+  var sym=SYM.kucoin; if(!sym) return;
+  // KuCoin cần lấy token động trước khi mở WebSocket
+  fetch('https://api.kucoin.com/api/v1/bullet-public',{method:'POST'})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      var d=j.data, srv=d.instanceServers[0];
+      var url=srv.endpoint+'?token='+d.token+'&connectId=q'+Date.now();
+      mkWS('kucoin',url,function(w){
+        w.send(JSON.stringify({id:Date.now(),type:'subscribe',
+          topic:'/market/match:'+sym,privateChannel:false,response:true}));
+        w.send(JSON.stringify({id:Date.now()+1,type:'subscribe',
+          topic:'/spotMarket/level2Depth50:'+sym,privateChannel:false,response:true}));
+        EX.kucoin.hb=setInterval(function(){ if(w.readyState===1)
+          w.send(JSON.stringify({id:Date.now(),type:'ping'})); },(srv.pingInterval||18000)*0.8);
+      },function(raw){
+        var m=JSON.parse(raw.toString());
+        if(m.type!=='message') return;
+        if(m.topic.indexOf('/market/match')===0){
+          var d2=m.data;
+          onTrade('kucoin',+d2.price,+d2.size,d2.side,Math.round(+d2.time/1e6));
+        } else if(m.topic.indexOf('/spotMarket/level2Depth')===0){
+          getBook('kucoin').snap(m.data.bids,m.data.asks); refreshQuote('kucoin');
+        }
+      });
+    }).catch(function(){ EX.kucoin.live=false; setFeed(); });
+}
+
 function connect(ex){
   if(ex==='binance') connectBinance();
   else if(ex==='bybit') connectBybit();
   else if(ex==='okx') connectOkx();
   else if(ex==='gate') connectGate();
+  else if(ex==='bitget') connectBitget();
+  else if(ex==='mexc') connectMexc();
+  else if(ex==='kraken') connectKraken();
+  else if(ex==='coinbase') connectCoinbase();
+  else if(ex==='bitfinex') connectBitfinex();
+  else if(ex==='hyper') connectHyper();
+  else if(ex==='kucoin') connectKucoin();
 }
 
 /* ---- nến lịch sử ---- */
@@ -864,8 +1088,9 @@ function binSnapshot(snap,lo,hi,rows){
     var all=d.b.concat(d.a);
     for(var i=0;i<all.length;i++){
       var p=all[i][0]; if(p<lo||p>hi) continue;
-      var r=Math.floor((hi-p)/(hi-lo)*(rows-1));
       var n=p*all[i][1];
+      if(HM_MIN>0 && n<HM_MIN) continue;          // chỉ hiện lệnh chờ từ mức này trở lên
+      var r=Math.floor((hi-p)/(hi-lo)*(rows-1));
       col[r]+=n; per[k][r]+=n;
     }
   }
@@ -938,6 +1163,16 @@ function computeWalls(){
   }
   arr.sort(function(a,b){return b.n-a.n;});
   S.walls=arr.slice(0,6);
+}
+function renderIce(){
+  var host=document.getElementById('iceList'); if(!host) return;
+  host.innerHTML = (MS.iceList&&MS.iceList.length)? MS.iceList.map(function(x){
+    var col=x.side==='ask'?'var(--red)':'var(--grn)';
+    return '<div class="zr" style="border-left-color:var(--cyn)">'+
+      '<b>'+pxs(x.price)+' <span style="color:'+col+'">'+(x.side==='ask'?'BÁN':'MUA')+'</span></b>'+
+      '<span>nạp lại '+x.refill+' lần · đã khớp $'+big(x.traded)+' · hiện $'+big(x.size)+
+      ' · '+x.age+'s</span></div>';
+  }).join('') : '<div style="font-size:8.5px;color:#3d5266">chưa thấy dấu hiệu nạp lại bất thường</div>';
 }
 function renderWalls(){
   var host=document.getElementById('walls'), html='';
@@ -1126,6 +1361,52 @@ function msAbsorption(){
   var tot=absBuy+absSell;
   MS.absorb = tot? (absSell-absBuy)/tot : 0;   // dương = bán bị hấp thụ = thiên tăng
 }
+
+/* ---------- nghi vấn ICEBERG: mức được nạp lại nhiều lần dù bị khớp ---------- */
+MS.ice=new Map(); MS.iceList=[];
+function detectIceberg(){
+  if(!HM_ICE) return;
+  var t=tickSize(); if(!t) return;
+  var mid=consolidatedMid(); if(!mid) return;
+  var now=Date.now(), agg={};
+  enabled().forEach(function(k){
+    var tp=bookOf(k); if(!tp) return;
+    ['b','a'].forEach(function(side){
+      (tp[side]||[]).forEach(function(l){
+        if(Math.abs(l[0]-mid)/mid>0.004) return;
+        var key=side+'|'+Math.round(l[0]/t);
+        agg[key]=(agg[key]||0)+l[0]*l[1];
+      });
+    });
+  });
+  for(var key in agg){
+    var st=MS.ice.get(key);
+    if(!st) st=MS.ice.set(key,{first:now,seen:now,refill:0,traded:0,last:agg[key],peak:agg[key]}).get(key);
+    // kích thước tăng trở lại sau khi giảm -> một lần nạp lại
+    if(agg[key] > st.last*1.25 && st.last>0) st.refill++;
+    st.last=agg[key]; st.peak=Math.max(st.peak,agg[key]); st.seen=now;
+  }
+  // khối lượng khớp tại mức đó
+  MS.buckets.forEach(function(b,k){
+    ['b|','a|'].forEach(function(pre){
+      var st=MS.ice.get(pre+k);
+      if(st) st.traded=Math.max(st.traded,(b.bt||0)+(b.st||0));
+    });
+  });
+  var out=[];
+  MS.ice.forEach(function(st,key){
+    if(now-st.seen>4000){ MS.ice.delete(key); return; }
+    // nạp lại >=3 lần và đã bị khớp ít nhất bằng kích thước hiển thị
+    if(st.refill>=3 && st.traded>st.peak*0.8){
+      out.push({side:key[0]==='b'?'bid':'ask', price:parseFloat(key.split('|')[1])*t,
+                refill:st.refill, traded:st.traded, size:st.peak,
+                age:Math.round((now-st.first)/1000)});
+    }
+  });
+  out.sort(function(a,b){ return b.traded-a.traded; });
+  MS.iceList=out.slice(0,6);
+}
+
 function msTick(){
   // OFI mỗi giây, chuẩn hoá theo độ sâu rồi z-score
   MS.ofiHist.push(MS.ofiAcc); MS.ofiAcc=0;
@@ -1154,6 +1435,7 @@ function msTick(){
   MS.ctm = (c.up+c.dn)? (c.dn-c.up)/(c.dn+c.up) : 0;   // dương = đẩy lên rẻ hơn
   MS.ctmRaw=c;
   msAbsorption();
+  try{ detectIceberg(); }catch(e){}
 }
 
 /* ================= signal ================= */
@@ -1310,8 +1592,10 @@ function paperTrade(){
      v: setupOk? (sig.side>0?'MUA · ':'BÁN · ')+sig.score+'/9 · còn '+
           Math.max(0,Math.ceil((sig.expire-Date.now())/60000))+'p'
         : (st&&st.zone? 'mới '+st.score+'/'+TPO.minCond+' điều kiện' : 'giá chưa vào vùng quan sát')},
-    {k:'R:R ≥ 1.4',            ok:rrOk,  v: setupOk? sig.rr.toFixed(2):'—'},
-    {k:'R RÒNG > '+MIN_R.toFixed(2), ok:costOk, v: netR!=null? netR.toFixed(2):'—'},
+    {k:'R:R ≥ 1.4'+(GATE_RR?'':' (TẮT)'),  ok: GATE_RR? rrOk : true,
+       v: setupOk? sig.rr.toFixed(2)+(GATE_RR?'':' · bỏ qua'):'—'},
+    {k:'R RÒNG > '+MIN_R.toFixed(2)+(GATE_COST?'':' (TẮT)'), ok: GATE_COST? costOk : true,
+       v: (netR!=null? netR.toFixed(2):'—')+(GATE_COST?'':' · bỏ qua')},
     {k:'ĐANG FLAT',            ok:!S.pos, v:S.pos?'đang có lệnh':'có'},
     {k:'HẾT COOLDOWN',         ok:cool,  v:cool?'ok':Math.ceil((90000-(Date.now()-S.lastCloseTs))/1000)+'s'},
     {k:'PHÂN TÁN < '+(DISP_MAX*100).toFixed(2)+'%', ok:dispOk,
@@ -1411,7 +1695,9 @@ reg('heat',function(c,w,h){
     c.fillText('ĐANG THU THẬP SỔ LỆNH TỪ CÁC SÀN…',10,h/2); return; }
   var on=enabled();
   if(!on.length){ c.fillStyle='#3d5266';c.font='10px monospace';c.fillText('TẤT CẢ SÀN ĐANG TẮT',10,h/2); return; }
-  var rows=64, H=S.heatHist, mw=w*0.80, cw=mw/H.length, rh=h/rows;
+  var CVH=34;                                   // dải CVD dưới đáy như Bookmap
+  var hh=h-CVH;
+  var rows=64, H=S.heatHist, mw=w*0.80, cw=mw/H.length, rh=hh/rows;
   var grid=[],maxQ=0,i,j;
   for(i=0;i<H.length;i++){
     var r=binSnapshot(H[i],R.lo,R.hi,rows);
@@ -1419,23 +1705,40 @@ reg('heat',function(c,w,h){
     for(j=0;j<rows;j++) if(r.col[j]>maxQ) maxQ=r.col[j];
   }
   if(!maxQ) return;
+  c.fillStyle='#04070b'; c.fillRect(0,0,w,h);
   for(i=0;i<grid.length;i++)for(j=0;j<rows;j++){
     var v=grid[i][j]; if(!v) continue;
-    c.fillStyle=hot(Math.pow(v/maxQ,0.42));
+    c.fillStyle=hot(Math.pow(v/maxQ,HM_GAMMA));
     c.fillRect(i*cw,j*rh,cw+0.8,rh+0.8);
   }
   // đường giá khớp
-  var pr=S.prints.slice(-H.length);
-  if(pr.length>2){
+  // ---- đường giá khớp + BONG BÓNG LỆNH như Bookmap ----
+  var t0=H[0].t, t1=H[H.length-1].t, span=Math.max(1,t1-t0);
+  function XT(t){ return clamp((t-t0)/span,0,1)*mw; }
+  function YP(p){ return clamp((R.hi-p)/(R.hi-R.lo),0,1)*hh; }
+  var recent=S.prints.filter(function(x){ return x.t>=t0 && x.p>=R.lo && x.p<=R.hi; });
+  if(recent.length>2){
     c.beginPath();
-    for(i=0;i<pr.length;i++){
-      var y=clamp((R.hi-pr[i].p)/(R.hi-R.lo),0,1)*h;
-      i?c.lineTo(i*cw,y):c.moveTo(i*cw,y);
+    for(i=0;i<recent.length;i++){
+      var xx=XT(recent[i].t), yy=YP(recent[i].p);
+      i?c.lineTo(xx,yy):c.moveTo(xx,yy);
     }
-    c.strokeStyle='#fff';c.lineWidth=1.3;c.stroke();
+    c.strokeStyle='rgba(255,255,255,.85)'; c.lineWidth=1.1; c.stroke();
   }
+  var mxN=0; recent.forEach(function(x){ mxN=Math.max(mxN,x.n); });
+  var bigThr=FP.bigThr? FP.bigThr()*0.25 : 0;
+  recent.forEach(function(x){
+    if(x.n<bigThr) return;                        // chỉ vẽ lệnh đáng kể, tránh rối
+    var r=2+Math.sqrt(x.n/(mxN||1))*13;
+    c.beginPath(); c.arc(XT(x.t),YP(x.p),r,0,6.3);
+    c.fillStyle= x.b? 'rgba(0,224,138,.35)':'rgba(255,79,178,.35)';
+    c.fill();
+    c.strokeStyle= x.b? '#00e08a':'#ff4fb2'; c.lineWidth=1; c.stroke();
+    if(r>10){ c.fillStyle='#eef6ff'; c.font='7px monospace'; c.textAlign='center';
+      c.fillText(big(x.n),XT(x.t),YP(x.p)+2.5); c.textAlign='left'; }
+  });
   // profile hiện tại, xếp chồng theo sàn
-  c.fillStyle='#04070b';c.fillRect(mw,0,w-mw,h);
+  c.fillStyle='#04070b';c.fillRect(mw,0,w-mw,hh);
   var cur=binSnapshot(H[H.length-1],R.lo,R.hi,rows), mq=0;
   for(j=0;j<rows;j++) if(cur.col[j]>mq) mq=cur.col[j];
   if(mq) for(j=0;j<rows;j++){
@@ -1449,14 +1752,34 @@ reg('heat',function(c,w,h){
     }
   }
   // trục giá + mid
-  var my=(R.hi-R.mid)/(R.hi-R.lo)*h;
+  var my=(R.hi-R.mid)/(R.hi-R.lo)*hh;
   c.strokeStyle='#ffb01f88';c.setLineDash([4,3]);
   c.beginPath();c.moveTo(0,my);c.lineTo(w,my);c.stroke();c.setLineDash([]);
   c.fillStyle='#5b7186';c.font='8px monospace';
-  c.fillText(pxs(R.hi),4,10); c.fillText(pxs(R.lo),4,h-4);
+  c.fillText(pxs(R.hi),4,10); c.fillText(pxs(R.lo),4,hh-4);
   c.fillStyle='#ffb01f'; c.fillText('MID '+pxs(R.mid),4,my-3);
-  c.fillStyle='#3d5266'; c.fillText('DEPTH NOW',mw+4,h-4);
+  c.fillStyle='#3d5266'; c.fillText('DEPTH NOW',mw+4,hh-4);
   c.fillText('← '+H.length+' ẢNH CHỤP · '+(H.length*0.25).toFixed(0)+'s',mw-96,12);
+
+  // ---- dải CVD dưới đáy, giống Bookmap ----
+  c.fillStyle='#060a0f'; c.fillRect(0,hh,w,CVH);
+  c.strokeStyle='#131e29'; c.beginPath(); c.moveTo(0,hh); c.lineTo(w,hh); c.stroke();
+  var cv=0, pts=[];
+  recent.forEach(function(x){ cv+= x.b? x.n : -x.n; pts.push({t:x.t,v:cv}); });
+  if(pts.length>2){
+    var vmn=Infinity,vmx=-Infinity;
+    pts.forEach(function(x){ vmn=Math.min(vmn,x.v); vmx=Math.max(vmx,x.v); });
+    c.beginPath();
+    for(var ci=0;ci<pts.length;ci++){
+      var cx=XT(pts[ci].t);
+      var cy=hh+CVH-5-((pts[ci].v-vmn)/((vmx-vmn)||1))*(CVH-12);
+      ci?c.lineTo(cx,cy):c.moveTo(cx,cy);
+    }
+    c.strokeStyle= cv>=0?'#00e08a':'#ff3d5a'; c.lineWidth=1.6; c.stroke();
+  }
+  c.fillStyle='#3d5266'; c.font='7px monospace'; c.fillText('CVD PHIÊN', 4, hh+10);
+  c.fillStyle= cv>=0?'#00e08a':'#ff3d5a';
+  c.fillText((cv>=0?'+$':'-$')+big(Math.abs(cv||0)), Math.max(60,mw-72), hh+10);
 });
 
 reg('gauge',function(c,w,h){
@@ -1588,6 +1911,86 @@ reg('tapeC',function(c,w,h){
 });
 
 /* ================= DOM ================= */
+
+/* ---------- quản lý nguồn dữ liệu & API key ---------- */
+var API_SRC=[
+  {k:'coinglass', n:'CoinGlass',      d:'thanh lý, OI, funding, long/short ratio'},
+  {k:'cmc',       n:'CoinMarketCap',  d:'vốn hoá, dominance, xếp hạng'},
+  {k:'cgecko',    n:'CoinGecko',      d:'giá tham chiếu, danh mục coin'},
+  {k:'cryptoq',   n:'CryptoQuant',    d:'dòng tiền on-chain, dự trữ sàn'},
+  {k:'velo',      n:'Velo / Amberdata',d:'dữ liệu phái sinh tổng hợp'},
+  {k:'databento', n:'Databento',      d:'CME MBO cho GC / vàng future'}
+];
+var API_KEYS={}, GW_URL='http://127.0.0.1:8080';
+try{
+  var raw=localStorage.getItem('cq_api');
+  if(raw){ var o=JSON.parse(raw); API_KEYS=o.keys||{}; GW_URL=o.gw||GW_URL; }
+}catch(e){}
+function saveApi(){
+  try{ localStorage.setItem('cq_api',JSON.stringify({keys:API_KEYS,gw:GW_URL})); }catch(e){}
+}
+function renderApi(){
+  var host=document.getElementById('apiList'); if(!host) return;
+  host.innerHTML=API_SRC.map(function(x){
+    var has=!!API_KEYS[x.k];
+    return '<div class="zr" style="border-left-color:'+(has?'var(--grn)':'#2a3947')+'">'+
+      '<b>'+x.n+'</b><span>'+x.d+'</span>'+
+      '<input data-api="'+x.k+'" placeholder="dán API key…" value="'+(API_KEYS[x.k]||'')+'" '+
+      'style="width:100%;margin-top:3px;font-size:9px"></div>';
+  }).join('');
+  var gw=document.getElementById('gwUrl'); if(gw) gw.value=GW_URL;
+}
+document.addEventListener('input',function(e){
+  var t=e.target;
+  if(t.getAttribute&&t.getAttribute('data-api')) API_KEYS[t.getAttribute('data-api')]=t.value.trim();
+});
+function renderExStat(){
+  var host=document.getElementById('exStat'); if(!host) return;
+  var rows=EXK.map(function(k){
+    var e=EX[k], q=S.quotes[k], bk=bookOf(k);
+    var depth=0;
+    if(bk&&bk.b) { bk.b.forEach(function(l){depth+=l[0]*l[1];});
+                   bk.a.forEach(function(l){depth+=l[0]*l[1];}); }
+    var sp = (q&&q.bid&&q.ask)? ((q.ask-q.bid)/((q.ask+q.bid)/2)*10000) : null;
+    var st = !SYM[k]? 'không niêm yết' : (!e.on? 'đã tắt' : (e.live? 'trực tiếp':'đang nối'));
+    var col= !SYM[k]? '#2a3947' : (!e.on? '#44586b' : (e.live? e.c : 'var(--amb)'));
+    return {k:k,e:e,st:st,col:col,depth:depth,sp:sp,
+            tps:(e.tps||0), lat:(e.lat!=null? e.lat:null), live:e.live&&e.on};
+  });
+  rows.sort(function(a,b){ return (b.live?1:0)-(a.live?1:0) || b.depth-a.depth; });
+  host.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:9px">'+
+    '<tr style="color:var(--dim);font-size:8px;letter-spacing:.09em">'+
+    '<th style="text-align:left">SÀN</th><th style="text-align:left">TRẠNG THÁI</th>'+
+    '<th style="text-align:right">LỆNH/S</th><th style="text-align:right">TRỄ</th>'+
+    '<th style="text-align:right">SPREAD</th><th style="text-align:right">ĐỘ SÂU</th></tr>'+
+    rows.map(function(r){
+      return '<tr style="border-bottom:1px solid #0c141c">'+
+        '<td style="color:'+r.col+';padding:2px 0">'+r.e.n+'</td>'+
+        '<td style="color:'+(r.live?'var(--grn)':'#44586b')+'">'+r.st+'</td>'+
+        '<td style="text-align:right;font-variant-numeric:tabular-nums">'+(r.live? r.tps.toFixed(1):'–')+'</td>'+
+        '<td style="text-align:right;color:'+((r.lat!=null&&r.lat>400)?'var(--red)':'var(--txt)')+'">'+
+          (r.lat!=null&&r.live? r.lat+'ms':'–')+'</td>'+
+        '<td style="text-align:right">'+(r.sp!=null&&r.live? r.sp.toFixed(1)+'bp':'–')+'</td>'+
+        '<td style="text-align:right">'+(r.depth? '$'+big(r.depth):'–')+'</td></tr>';
+    }).join('')+'</table>';
+}
+setInterval(function(){
+  EXK.forEach(function(k){ var e=EX[k]; e.tps=(e.tk||0)/2; e.tk=0; });
+  try{ renderExStat(); }catch(e){}
+},2000);
+
+function renderExList(){
+  var host=document.getElementById('exList'); if(!host) return;
+  host.innerHTML=EXK.map(function(k){
+    var e=EX[k], sup=SYM.bridge?false:!!SYM[k];
+    return '<span class="tfb'+(e.on?' on':'')+'" data-ex="'+k+'" '+
+      'style="'+(e.on?'border-color:'+e.c+';color:'+e.c:'')+'">'+e.n+
+      (e.live?' ●':(sup?'':' n/a'))+'</span>';
+  }).join('');
+  var sc=document.getElementById('srcCount');
+  if(sc) sc.textContent=EXK.filter(function(k){return EX[k].live;}).length+'/'+EXK.length+' SÀN TRỰC TIẾP';
+}
+
 function renderChips(){
   var h1='',h2='';
   EXK.forEach(function(k){
@@ -1600,14 +2003,18 @@ function renderChips(){
        '<i class="d" style="background:'+(e.live&&e.on?e.c:'#233240')+';color:'+e.c+'"></i>'+e.n+'</span>';
   });
   document.getElementById('venues').innerHTML=h1;
+  try{ renderExList(); }catch(e){}
   document.getElementById('hmChips').innerHTML=h2;
 }
 document.addEventListener('click',function(ev){
-  var t=ev.target.closest? ev.target.closest('.vchip') : null;
+  var t=ev.target.closest? ev.target.closest('[data-ex]') : null;   // chip ở mọi panel
   if(!t) return;
   var k=t.getAttribute('data-ex'); if(!EX[k]) return;
   EX[k].on=!EX[k].on;
-  renderChips();
+  if(EX[k].on && !EX[k].live){ EX[k].killed=false; connect(k); }
+  if(!EX[k].on && EX[k].ws){ EX[k].killed=true; clearInterval(EX[k].hb);
+    try{EX[k].ws.close();}catch(e2){} EX[k].ws=null; EX[k].live=false; }
+  renderChips(); renderExList(); setFeed();
 });
 
 function renderBookLadder(){
@@ -1932,6 +2339,23 @@ document.getElementById('feeSel').addEventListener('change',function(e){
 });
 
 document.getElementById('minRIn').addEventListener('input',function(e){ MIN_R=Math.max(0.5,+e.target.value||1.15); });
+(function(){
+  function tg(id,set,get){
+    var el=document.getElementById(id); if(!el) return;
+    el.addEventListener('click',function(){ set(!get()); el.className='vchip'+(get()?' on':''); });
+  }
+  tg('gCost',function(v){GATE_COST=v;},function(){return GATE_COST;});
+  tg('gRR',  function(v){GATE_RR=v;},  function(){return GATE_RR;});
+})();
+(function(){
+  var b=document.getElementById('apiSave');
+  if(b) b.addEventListener('click',function(){
+    var gw=document.getElementById('gwUrl'); if(gw) GW_URL=gw.value.trim();
+    saveApi(); renderApi();
+    pushLog('CẤU HÌNH','đã lưu '+Object.keys(API_KEYS).filter(function(k){return API_KEYS[k];}).length+
+      ' API key · gateway '+GW_URL,null);
+  });
+})();
 document.getElementById('minCond').addEventListener('input',function(e){
   TPO.minCond=clamp(+e.target.value||3,2,9); });
 document.getElementById('validMin').addEventListener('input',function(e){
@@ -2043,6 +2467,20 @@ function tpoLetters(){
   return order.map(function(g,i){ return {ch:A[i%A.length],hi:groups[g].hi,lo:groups[g].lo}; });
 }
 
+function renderLayerTog(){
+  var host=document.getElementById('layerTog'); if(!host) return;
+  var items=[['candle','NẾN'],['tpo','TPO'],['va','VÙNG GIÁ TRỊ'],['ib','IB'],
+             ['sp','SINGLE PRINT'],['tail','TAIL BOX'],['tpoDelta','TPO THEO DELTA'],
+             ['merge','GỘP TPO']];
+  host.innerHTML=items.map(function(it){
+    return '<span class="tfb'+(LAYERS[it[0]]?' on':'')+'" data-layer="'+it[0]+'">'+it[1]+'</span>';
+  }).join('');
+}
+document.addEventListener('click',function(e){
+  var t=e.target.closest&&e.target.closest('[data-layer]');
+  if(!t) return;
+  var k=t.getAttribute('data-layer'); LAYERS[k]=!LAYERS[k]; renderLayerTog();
+});
 function renderFpTog(){
   var host=document.getElementById('fpTog'); if(!host) return;
   var items=[['delta','DELTA'],['big','BIG TRADE'],['cvd','CVD'],['prof','VOL PROFILE'],['tpo','TPO']];
@@ -2085,7 +2523,10 @@ var IND_DEFS={
   cvdi:  {name:'CVD',        pane:1, p:{ma:10},                 c:'#00e08a'},
   deltai:{name:'Volume Delta',pane:1,p:{ma:10,arrow:1.6},        c:'#3d7bff'}
 };
+var LAYERS={ candle:true, tpo:true, va:true, ib:true, sp:true, tail:true,
+             tpoDelta:true, prof:true, big:true, delta:true, heat:false, merge:false };
 var CH={ tf:'1m', bars:[], i0:0, i1:0, cross:null, drag:null, uid:1, loading:false,
+         tpoPeriod:1800000, mergeN:5,
   inds:[ {id:1,t:'ema',on:true,p:{len:9},  c:'#00e08a'},
          {id:2,t:'ema',on:true,p:{len:21}, c:'#ffb01f'},
          {id:3,t:'ema',on:true,p:{len:55}, c:'#ff4fb2'},
@@ -2258,6 +2699,151 @@ function chTPO(vis){
   return order.map(function(g,i){ return {ch:A[i%A.length],hi:groups[g].hi,lo:groups[g].lo}; });
 }
 
+
+/* ---------- TPO vẽ chồng lên chart nến, canh theo trục thời gian ---------- */
+function chBuildTPO(){
+  var b=CH.bars; if(!b||b.length<10) return [];
+  var ms=CH.tpoPeriod, tick=niceTick(b[b.length-1].c);
+  var groups={}, order=[];
+  for(var i=0;i<b.length;i++){
+    var g=Math.floor(b[i].t/ms);
+    if(!groups[g]){ groups[g]={bars:[],i0:i}; order.push(g); }
+    groups[g].bars.push(b[i]); groups[g].i1=i;
+  }
+  var out=[];
+  order.forEach(function(g){
+    var p=buildProfile(groups[g].bars,tick);
+    if(!p) return;
+    p.i0=groups[g].i0; p.i1=groups[g].i1; p.tick=tick;
+    // IB: 60 phút đầu chu kỳ
+    var perBar=(CH.bars.length>1? (CH.bars[1].t-CH.bars[0].t):60000);
+    var nIB=Math.max(1,Math.round(3600000/perBar));
+    var ibB=groups[g].bars.slice(0,nIB);
+    p.ibh=Math.max.apply(null,ibB.map(function(x){return x.h;}));
+    p.ibl=Math.min.apply(null,ibB.map(function(x){return x.l;}));
+    out.push(p);
+  });
+  return out;
+}
+function mergeProfiles(list,tick){
+  if(!list.length) return null;
+  var bars=[];
+  list.forEach(function(p){ });
+  // gộp trực tiếp các map đếm
+  var cnt=new Map(), del=new Map(), vol=new Map(), hi=-Infinity, lo=Infinity, cvd=0;
+  list.forEach(function(p){
+    hi=Math.max(hi,p.h); lo=Math.min(lo,p.l); cvd+=p.cvd;
+    p.cnt.forEach(function(v,k){ cnt.set(k,(cnt.get(k)||0)+v); });
+    p.del.forEach(function(v,k){ del.set(k,(del.get(k)||0)+v); });
+    p.vol.forEach(function(v,k){ vol.set(k,(vol.get(k)||0)+v); });
+  });
+  var poc=null,best=-1;
+  cnt.forEach(function(c,k){ if(c>best){best=c;poc=k;} });
+  var total=0; cnt.forEach(function(c){ total+=c; });
+  var need=total*0.7, acc=cnt.get(poc)||0, up=poc+1, dn=poc-1;
+  while(acc<need&&(cnt.has(up)||cnt.has(dn))){
+    var cu=cnt.get(up)||0, cd=cnt.get(dn)||0;
+    if(cu>=cd){acc+=cu;up++;}else{acc+=cd;dn--;}
+    if(up-dn>6000) break;
+  }
+  var keys=[...cnt.keys()].sort(function(a,b){return a-b;});
+  var pocRel=(hi-lo)?((poc*tick)-lo)/(hi-lo):0.5;
+  var shape = pocRel>0.62?'P':(pocRel<0.38?'b':'D');
+  return {cnt:cnt,del:del,vol:vol,keys:keys,tick:tick,h:hi,l:lo,poc:poc*tick,
+          vah:(up-1)*tick,val:(dn+1)*tick,shape:shape,cvd:cvd,
+          o:list[0].o,c:list[list.length-1].c,
+          i0:list[0].i0,i1:list[list.length-1].i1,
+          sp:[], poorHigh:false, poorLow:false, merged:list.length};
+}
+function drawTPOLayer(ctx,W,H,X,Y,CW,i0,i1,mn,mx){
+  var P=CH.tpoCache||[];
+  if(!P.length) return;
+  var vis=P.filter(function(p){ return p.i1>=i0 && p.i0<=i1; });
+  if(!vis.length) return;
+  if(LAYERS.merge && vis.length>1){
+    var m=mergeProfiles(vis.slice(-CH.mergeN),vis[0].tick);
+    if(m){ m.i0=vis[Math.max(0,vis.length-CH.mergeN)].i0; m.i1=vis[vis.length-1].i1; vis=[m]; }
+  }
+  vis.forEach(function(p){
+    var x0=X(Math.max(i0,p.i0))-CW/2, x1=X(Math.min(i1,p.i1))+CW/2;
+    var wdt=Math.max(6,x1-x0);
+    // chiều cao một hàng = số pixel của ĐÚNG một tick trên thang giá đang hiển thị
+    var rowH=Math.max(1.2, Math.abs(Y(mn)-Y(mn+p.tick)));
+    var mxc=0,mxd=0;
+    p.cnt.forEach(function(v){ mxc=Math.max(mxc,v); });
+    p.del.forEach(function(v){ mxd=Math.max(mxd,Math.abs(v)); });
+    // tail box: phần ngoài VA ở hai cực
+    if(LAYERS.tail){
+      ctx.fillStyle='rgba(120,145,168,.07)';
+      ctx.fillRect(x0,Y(p.h),wdt,Math.max(1,Y(p.vah)-Y(p.h)));
+      ctx.fillRect(x0,Y(p.val),wdt,Math.max(1,Y(p.l)-Y(p.val)));
+      ctx.strokeStyle='rgba(120,145,168,.28)'; ctx.lineWidth=1;
+      ctx.strokeRect(x0,Y(p.h),wdt,Math.max(1,Y(p.vah)-Y(p.h)));
+      ctx.strokeRect(x0,Y(p.val),wdt,Math.max(1,Y(p.l)-Y(p.val)));
+    }
+    if(LAYERS.va){
+      ctx.fillStyle='rgba(46,230,255,.05)';
+      ctx.fillRect(x0,Y(p.vah),wdt,Math.max(1,Y(p.val)-Y(p.vah)));
+    }
+    // các hàng TPO
+    var usable=wdt*0.52;
+    var blockW=clamp(usable/Math.max(1,mxc), 1.2, 7);
+    p.keys.forEach(function(k){
+      var price=k*p.tick; if(price<mn||price>mx) return;
+      var y=Y(price), n=p.cnt.get(k), inVA=price>=p.val&&price<=p.vah;
+      var col;
+      if(LAYERS.tpoDelta && mxd){
+        var dv=p.del.get(k)||0, t=Math.min(1,Math.abs(dv)/mxd);
+        col = dv>0? 'rgba(60,140,255,'+(0.3+t*0.65)+')'
+                  : 'rgba(255,61,90,'+(0.3+t*0.65)+')';
+      } else col = inVA? 'rgba(226,238,250,.78)':'rgba(120,145,168,.38)';
+      ctx.fillStyle=col;
+      // từng TPO là một khối riêng, xếp ngang — đúng như dải TPO
+      var nb=Math.min(n, Math.floor(usable/blockW)||1);
+      for(var q=0;q<nb;q++)
+        ctx.fillRect(x0+1+q*blockW, y-rowH/2, Math.max(1,blockW-0.6), Math.max(1,rowH-0.5));
+      if(LAYERS.sp && n===1 && price>=p.val && price<=p.vah){
+        ctx.fillStyle='#2ee6ff';
+        ctx.fillRect(x0+1, y-0.7, usable, Math.max(1.4,rowH*0.5));
+      }
+    });
+    // POC / VAH / VAL
+    ctx.strokeStyle='#ffb01f'; ctx.lineWidth=1.3;
+    ctx.beginPath(); ctx.moveTo(x0,Y(p.poc)); ctx.lineTo(x1,Y(p.poc)); ctx.stroke();
+    if(LAYERS.va){
+      ctx.strokeStyle='#3d7bff99'; ctx.lineWidth=1;
+      [p.vah,p.val].forEach(function(v){
+        ctx.beginPath(); ctx.moveTo(x0,Y(v)); ctx.lineTo(x1,Y(v)); ctx.stroke(); });
+    }
+    // IB
+    if(LAYERS.ib && p.ibh){
+      ctx.strokeStyle='#00e08a'; ctx.lineWidth=2.4;
+      ctx.beginPath(); ctx.moveTo(x0+2,Y(p.ibh)); ctx.lineTo(x0+2,Y(p.ibl)); ctx.stroke();
+    }
+    // giá mở / đóng
+    ctx.fillStyle='#ff4fb2'; ctx.beginPath(); ctx.arc(x0+3,Y(p.o),2.4,0,6.3); ctx.fill();
+    ctx.fillStyle= p.c>=p.o?'#00e08a':'#ff3d5a';
+    ctx.beginPath(); ctx.moveTo(x1-2,Y(p.c)-3.5); ctx.lineTo(x1-2,Y(p.c)+3.5);
+    ctx.lineTo(x1-8,Y(p.c)); ctx.closePath(); ctx.fill();
+    // nhãn: shape, CVD, đấu giá chưa hoàn thành
+    ctx.font='700 9px monospace';
+    ctx.fillStyle='#dbe9f5';
+    ctx.fillText(p.shape+(p.merged?(' ×'+p.merged):''), x0+2, Y(p.h)-5);
+    // con số dưới chân cây = VOLUME DELTA của cây đó (tổng mua chủ động − bán chủ động)
+    var dtxt=(p.cvd>=0?'+':'-')+big(Math.abs(p.cvd));
+    var tw=ctx.measureText(dtxt).width+8;
+    var dy0=Y(p.l)+6;
+    ctx.fillStyle='#0a0f14';
+    ctx.fillRect(x0+1, dy0, Math.min(tw,wdt), 13);
+    ctx.strokeStyle= p.cvd>=0?'#144a35':'#4b1a24'; ctx.lineWidth=1;
+    ctx.strokeRect(x0+1, dy0, Math.min(tw,wdt), 13);
+    ctx.fillStyle= p.cvd>=0?'#00e08a':'#ff3d5a';
+    ctx.fillText(dtxt, x0+5, dy0+10);
+    if(p.poorHigh){ ctx.fillStyle='#ffb01f'; ctx.fillText('POOR HIGH', x0+2, Y(p.h)-13); }
+    if(p.poorLow){ ctx.fillStyle='#ffb01f'; ctx.fillText('POOR LOW', x0+2, Y(p.l)+20); }
+  });
+}
+
 /* ---- vẽ ---- */
 reg('chart',function(ctx,W,H){
   ctx.clearRect(0,0,W,H);
@@ -2309,6 +2895,11 @@ reg('chart',function(ctx,W,H){
     var lbl = TFMS[CH.tf]>=86400000? (dt.getDate()+'/'+(dt.getMonth()+1))
       : (String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0'));
     ctx.fillStyle='#3d5266'; ctx.fillText(lbl, xx-13, H-6);
+  }
+
+  // lớp TPO chồng lên nến
+  if(LAYERS.tpo){
+    try{ drawTPOLayer(ctx,W,H,X,Y,CW,i0,i1,mn,mx); }catch(e){}
   }
 
   // volume nền
@@ -2381,6 +2972,7 @@ reg('chart',function(ctx,W,H){
 
   // ---- nến, tô theo delta nếu bật ----
   var maxD=1;
+  if(!LAYERS.candle) { /* bỏ vẽ nến */ } else {
   if(FP.delta) for(i=0;i<n;i++){ var dq=chDelta(vis[i]); if(dq!=null) maxD=Math.max(maxD,Math.abs(dq)); }
   for(i=0;i<n;i++){
     var k=vis[i], x2=X(i0+i), up=k.c>=k.o;
@@ -2394,6 +2986,7 @@ reg('chart',function(ctx,W,H){
     var y1=Y(Math.max(k.o,k.c)), y2=Y(Math.min(k.o,k.c));
     if(CW>2.2) ctx.fillRect(x2-CW*0.34,y1,Math.max(1,CW*0.68),Math.max(1,y2-y1));
     else ctx.fillRect(x2-0.5,y1,1.4,Math.max(1,y2-y1));
+  }
   }
 
   // ---- lệnh lớn ----
@@ -2623,6 +3216,11 @@ document.addEventListener('input',function(e){
 (function(){
   var bm=document.getElementById('bigMult');
   if(bm) bm.addEventListener('input',function(e){ FP.bigMult=Math.max(3,+e.target.value||40); });
+  var tp=document.getElementById('chTpoP');
+  if(tp) tp.addEventListener('change',function(e){ CH.tpoPeriod=+e.target.value;
+    try{ CH.tpoCache=chBuildTPO(); }catch(err){} });
+  var mn2=document.getElementById('chMergeN');
+  if(mn2) mn2.addEventListener('input',function(e){ CH.mergeN=Math.max(2,+e.target.value||5); });
   var bn=document.getElementById('bigMin');
   if(bn) bn.addEventListener('input',function(e){ FP.bigMin=Math.max(0,+e.target.value||0); });
   var ba=document.getElementById('bigAuto'), bf=document.getElementById('bigFixed');
@@ -2635,6 +3233,7 @@ document.addEventListener('input',function(e){
   if(ba) ba.addEventListener('click',function(){ bigMode(false); });
   if(bf) bf.addEventListener('click',function(){ bigMode(true); });
 })();
+setInterval(function(){ try{ CH.tpoCache=chBuildTPO(); }catch(e){ CH.tpoCache=[]; } },3000);
 setInterval(function(){ if(CH.tf!=='1m' && !CH.loading) chLoad(); },20000);
 setInterval(function(){
   if(CH.tf!=='1m' && CH.bars.length && S.lastPx){
@@ -3702,10 +4301,18 @@ setInterval(function(){ try{ icSample(); }catch(e){} },5000);
 setInterval(function(){ try{ renderLab(); }catch(e){} },2000);
 setInterval(function(){ try{ sampleHeat(); msLevels(); }catch(e){} },250);
 setInterval(function(){ try{ pollDeep(); }catch(e){} },3000);
+(function(){
+  var g=document.getElementById('hmGamma');
+  if(g) g.addEventListener('input',function(e){ HM_GAMMA=+e.target.value||0.42; });
+  var m=document.getElementById('hmMin');
+  if(m) m.addEventListener('input',function(e){ HM_MIN=Math.max(0,+e.target.value||0); });
+  var ic=document.getElementById('hmIce');
+  if(ic) ic.addEventListener('click',function(){ HM_ICE=!HM_ICE; ic.className='vchip'+(HM_ICE?' on':''); });
+})();
 document.getElementById('hmRange').addEventListener('change',function(e){
   HM_RANGE=+e.target.value; S.heatHist=[];
 });
-setInterval(function(){ try{ computeWalls(); renderWalls(); }catch(e){} },1200);
+setInterval(function(){ try{ computeWalls(); renderWalls(); renderIce(); }catch(e){} },1200);
 setTimeout(function(){
   if(!S.bars.length && !SYM.bridge)
     showErr('<b>Đã 12 giây chưa nhận được dữ liệu.</b> Mở file .html trực tiếp trên máy (nháy đúp), '+
@@ -3713,7 +4320,7 @@ setTimeout(function(){
       'một số nhà mạng Việt Nam chặn api.binance.com — hệ thống sẽ tự thử Bybit, OKX, Gate.io.');
 },12000);
 
-renderChips(); renderLog(); renderFpTog(); renderTf(); renderInds(); frame();
+renderChips(); renderLog(); renderFpTog(); renderTf(); renderInds(); renderLayerTog(); renderApi(); renderExList(); renderExStat(); frame();
 document.getElementById('pxTitle').textContent=SYM.label;
 loadBars().then(function(){ chLoad(); }).catch(function(){});
 EXK.forEach(connect);
