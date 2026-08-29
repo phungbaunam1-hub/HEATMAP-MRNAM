@@ -461,6 +461,13 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
         <div id="tpoEvents"></div>
         <div class="sechd2">VÙNG CUNG CẦU</div>
         <div id="tpoZones"></div>
+        <div class="sechd2">TỰ HỌC TỪ KẾT QUẢ</div>
+        <div class="tfbar" style="margin:4px 0">
+          <span class="tfb" id="lrnTog">TỰ HỌC · TẮT</span>
+          <span class="tfb" id="lrnReset">XOÁ ĐÃ HỌC</span>
+        </div>
+        <div id="lrnList"></div>
+        <div id="lrnNote" style="font-size:8px;color:#3d5266;line-height:1.55;margin-top:4px"></div>
         <div class="sechd2">LỊCH SỬ TÍN HIỆU</div>
         <div id="sigStat" style="font-size:9px;color:var(--dim);margin-bottom:3px">—</div>
         <div id="sigList" style="max-height:210px;overflow-y:auto"></div>
@@ -1594,7 +1601,8 @@ function paperTrade(){
   var notional=CAPITAL*0.08;
   S.blockers=[
     {k:'CÓ TÍN HIỆU CÒN HẠN', ok:setupOk,
-     v: setupOk? (sig.side>0?'MUA · ':'BÁN · ')+sig.score+'/9 · còn '+
+     v: setupOk? (sig.side>0?'MUA · ':'BÁN · ')+sig.score+'/9'+
+          (LRN.on&&learnTotal()>=15?' (học '+learnedScore(sig.checks).toFixed(1)+')':'')+' · còn '+
           Math.max(0,Math.ceil((sig.expire-Date.now())/60000))+'p'
         : (st&&st.zone? 'mới '+st.score+'/'+TPO.minCond+' điều kiện' : 'giá chưa vào vùng quan sát')},
     {k:'R:R ≥ 1.4'+(GATE_RR?'':' (TẮT)'),  ok: GATE_RR? rrOk : true,
@@ -2361,6 +2369,22 @@ document.getElementById('minRIn').addEventListener('input',function(e){ MIN_R=Ma
       ' API key · gateway '+GW_URL,null);
   });
 })();
+// gắn ở cuối, sau khi LRN đã được khởi tạo — chạy ngay tại đây sẽ đọc LRN khi nó còn undefined
+function initLearnUI(){
+  var t=document.getElementById('lrnTog');
+  if(t){ t.textContent='TỰ HỌC · '+(LRN.on?'BẬT':'TẮT'); t.className='tfb'+(LRN.on?' on':'');
+    t.addEventListener('click',function(){
+      LRN.on=!LRN.on; saveLearn();
+      t.textContent='TỰ HỌC · '+(LRN.on?'BẬT':'TẮT'); t.className='tfb'+(LRN.on?' on':'');
+      pushLog('CẤU HÌNH','tự học '+(LRN.on?'BẬT — dùng trọng số từ kết quả thật':'TẮT — đếm điều kiện đều nhau'),null);
+    }); }
+  var r=document.getElementById('lrnReset');
+  if(r) r.addEventListener('click',function(){
+    LRN.stats={}; saveLearn(); renderLearn();
+    pushLog('CẤU HÌNH','đã xoá toàn bộ dữ liệu đã học',null);
+  });
+}
+setInterval(function(){ try{ renderLearn(); }catch(e){} },3000);
 document.getElementById('minCond').addEventListener('input',function(e){
   TPO.minCond=clamp(+e.target.value||3,2,9); });
 document.getElementById('validMin').addEventListener('input',function(e){
@@ -4040,8 +4064,11 @@ function buildSetup(){
   C.push({k:'CVD PHÂN KỲ ỦNG HỘ', ok:cvdDiv, v:cvdTxt});
 
   var score=C.filter(function(x){return x.ok;}).length;
-  var must = vaOk;                        // chỉ cấm khi bối cảnh TPO đi ngược
-  var ok = must && score>=TPO.minCond;
+  var lscore=learnedScore(C);
+  var useL = LRN.on && learnTotal()>=15;   // chưa đủ mẫu thì không dám dùng
+  var effScore = useL? lscore : score;
+  var must = vaOk;                         // chỉ cấm khi bối cảnh TPO đi ngược
+  var ok = must && effScore>=TPO.minCond;
 
   // SL đặt sau cực trị vừa quét, TP ở vùng đối diện gần nhất
   var ext = wantUp? Math.min.apply(null,w.slice(-12).map(function(x){return x.l;}))
@@ -4066,11 +4093,103 @@ function buildSetup(){
       (kiet?'Lực mua cạn dần qua các đỉnh. ':'')+
       'Người mua cuối cùng đã xuất hiện, phía dưới còn '+(opp?('vùng cầu '+pxs(opp.hi)):'khoảng trống')+' để giá rơi về.';
 
-  TPO.setup={ ok:ok, side:side, checks:C, score:score, zone:z,
+  TPO.setup={ ok:ok, side:side, checks:C, score:score, lscore:lscore, useL:useL, zone:z,
     entry:px, sl:sl, tp:tp, rr:rr, story:story,
     why: ok? story : (!must? 'Bối cảnh TPO đang đi ngược hướng vùng này — không trả giá.'
-                            : 'Mới '+score+'/9 điều kiện, cần '+TPO.minCond+'.') };
+                            : (useL? 'Điểm đã học '+lscore.toFixed(2)+'/9 (thô '+score+'), cần '+TPO.minCond+'.'
+                                     : 'Mới '+score+'/9 điều kiện, cần '+TPO.minCond+'.')) };
   if(ok) trySignal(TPO.setup);
+}
+
+
+/* ==================== TỰ HỌC TỪ KẾT QUẢ TÍN HIỆU ====================
+   Nguyên tắc: không tin trọng số do người gán. Với mỗi điều kiện, đếm
+   thắng/thua khi điều kiện BẬT và khi TẮT, rồi so hai tỉ lệ.
+   - Laplace smoothing: tránh kết luận từ 1-2 mẫu
+   - Co ngót theo cỡ mẫu: mẫu càng ít, trọng số càng gần mặc định
+   - Không bao giờ đảo dấu một điều kiện khi chưa đủ mẫu
+==================================================================== */
+var LRN={ stats:{}, on:false, minN:12, ver:1 };
+try{ var _l=localStorage.getItem('cq_learn'); if(_l){ var o=JSON.parse(_l);
+  if(o&&o.ver===1){ LRN.stats=o.stats||{}; LRN.on=!!o.on; } } }catch(e){}
+function saveLearn(){
+  try{ localStorage.setItem('cq_learn',JSON.stringify({ver:1,stats:LRN.stats,on:LRN.on})); }catch(e){}
+}
+function learnFromSignal(sig){
+  if(!sig||!sig.checks||sig.learned) return;
+  sig.learned=true;
+  var win = sig.status==='WIN'? 1 : (sig.status==='LOSS'? 0 : (sig.r>0.15?1:0));
+  sig.checks.forEach(function(c){
+    var st=LRN.stats[c.k]; if(!st) st=LRN.stats[c.k]={onW:0,onL:0,offW:0,offL:0};
+    if(c.ok){ win? st.onW++ : st.onL++; } else { win? st.offW++ : st.offL++; }
+  });
+  saveLearn();
+}
+function condStat(k){
+  var st=LRN.stats[k];
+  if(!st) return {n:0,nOff:0,pOn:null,pOff:null,edge:0,w:1};
+  var nOn=st.onW+st.onL, nOff=st.offW+st.offL;
+  var pOn=(st.onW+1)/(nOn+2), pOff=(st.offW+1)/(nOff+2);   // Laplace
+  var raw=pOn-pOff;
+  // Trừ đi MỘT SAI SỐ CHUẨN: chênh lệch nhỏ hơn nhiễu thống kê thì coi như bằng 0.
+  // Không có bước này, một điều kiện ngẫu nhiên vẫn ra "lợi thế" giả với vài chục mẫu.
+  var se=Math.sqrt(pOn*(1-pOn)/Math.max(1,nOn) + pOff*(1-pOff)/Math.max(1,nOff));
+  var sig=Math.sign(raw)*Math.max(0, Math.abs(raw)-se);
+  var shrink=nOn/(nOn+LRN.minN);                            // co ngót theo cỡ mẫu
+  var edge=sig*shrink;
+  return {n:nOn,nOff:nOff,pOn:nOn>=4?pOn:null,pOff:nOff>=4?pOff:null,
+          edge:edge, w:clamp(1+edge*2.5,0.15,2.6)};
+}
+// điểm số đã học, quy về cùng thang /9 để dùng chung ngưỡng
+function learnedScore(checks){
+  var s=0,tot=0;
+  checks.forEach(function(c){
+    var w=condStat(c.k).w;
+    tot+=w; if(c.ok) s+=w;
+  });
+  return tot? (s/tot)*checks.length : 0;
+}
+function learnTotal(){
+  var n=0; for(var k in LRN.stats){ var st=LRN.stats[k]; n=Math.max(n,st.onW+st.onL+st.offW+st.offL); }
+  return n;
+}
+function renderLearn(){
+  var host=document.getElementById('lrnList'); if(!host) return;
+  var keys=Object.keys(LRN.stats);
+  if(!keys.length){ host.innerHTML='<div style="font-size:8.5px;color:#3d5266">'+
+    'chưa có tín hiệu nào kết thúc — hệ thống chưa học được gì</div>'; return; }
+  var rows=keys.map(function(k){ var q=condStat(k); q.k=k; return q; })
+               .sort(function(a,b){ return b.edge-a.edge; });
+  host.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:8.5px">'+
+   '<tr style="color:var(--dim);font-size:7.5px;letter-spacing:.08em">'+
+   '<th style="text-align:left">ĐIỀU KIỆN</th><th style="text-align:right">MẪU</th>'+
+   '<th style="text-align:right">THẮNG KHI BẬT</th><th style="text-align:right">KHI TẮT</th>'+
+   '<th style="text-align:right">LỢI THẾ RÒNG</th><th style="text-align:right">TRỌNG SỐ</th></tr>'+
+   rows.map(function(r){
+     var col = r.edge>0.04?'var(--grn)':(r.edge<-0.04?'var(--red)':'var(--txt)');
+     var warn = (r.n>=20 && r.edge<-0.06);
+     return '<tr style="border-bottom:1px solid #0c141c">'+
+       '<td style="padding:2px 0;color:'+(warn?'var(--red)':'var(--hi)')+'">'+r.k+
+       (warn?' <span style="font-size:7px">PHẢN TÁC DỤNG</span>':'')+'</td>'+
+       '<td style="text-align:right;color:'+(r.n<LRN.minN?'#5b7186':'var(--txt)')+'">'+r.n+'</td>'+
+       '<td style="text-align:right">'+(r.pOn!=null?(r.pOn*100).toFixed(0)+'%':'–')+'</td>'+
+       '<td style="text-align:right;color:#5b7186">'+(r.pOff!=null?(r.pOff*100).toFixed(0)+'%':'–')+'</td>'+
+       '<td style="text-align:right;color:'+col+'">'+(r.edge>=0?'+':'')+(r.edge*100).toFixed(1)+'</td>'+
+       '<td style="text-align:right;color:'+col+'">'+r.w.toFixed(2)+'</td></tr>';
+   }).join('')+'</table>';
+  var note=document.getElementById('lrnNote');
+  if(note){
+    var tot=learnTotal();
+    var best=rows[0], worst=rows[rows.length-1];
+    note.innerHTML = tot<15
+      ? 'Mới '+tot+' tín hiệu đã kết thúc. Dưới 15 mẫu thì mọi con số ở đây đều là ngẫu nhiên — '+
+        'trọng số vẫn giữ gần 1.00 cho tới khi đủ dữ liệu.'
+      : 'Sau '+tot+' tín hiệu: <b style="color:var(--grn)">'+best.k+'</b> đang giúp nhiều nhất '+
+        '('+(best.edge>=0?'+':'')+(best.edge*100).toFixed(1)+' điểm), '+
+        '<b style="color:var(--red)">'+worst.k+'</b> ít giá trị nhất '+
+        '('+(worst.edge>=0?'+':'')+(worst.edge*100).toFixed(1)+'). '+
+        (LRN.on? 'Đang áp dụng trọng số đã học.' : 'Bật TỰ HỌC để áp dụng.');
+  }
 }
 
 /* ============ SỔ TÍN HIỆU: sinh ra, còn hạn, kết thúc ============
@@ -4106,9 +4225,9 @@ function updateSignals(){
     if(x.r<x.mae) x.mae=x.r;
     var hitTP = x.side>0? px>=x.tp : px<=x.tp;
     var hitSL = x.side>0? px<=x.sl : px>=x.sl;
-    if(hitTP){ x.status='WIN';  x.r=Math.abs(x.tp-x.entry)/x.risk; x.closedAt=now; }
-    else if(hitSL){ x.status='LOSS'; x.r=-1; x.closedAt=now; }
-    else if(now>x.expire){ x.status='EXP'; x.closedAt=now; }
+    if(hitTP){ x.status='WIN';  x.r=Math.abs(x.tp-x.entry)/x.risk; x.closedAt=now; learnFromSignal(x); }
+    else if(hitSL){ x.status='LOSS'; x.r=-1; x.closedAt=now; learnFromSignal(x); }
+    else if(now>x.expire){ x.status='EXP'; x.closedAt=now; learnFromSignal(x); }
   });
 }
 function signalStats(){
@@ -4549,13 +4668,47 @@ setTimeout(function(){
       'một số nhà mạng Việt Nam chặn api.binance.com — hệ thống sẽ tự thử Bybit, OKX, Gate.io.');
 },12000);
 
-renderChips(); renderLog(); renderFpTog(); renderTf(); renderInds(); renderLayerTog(); renderApi(); renderExList(); renderExStat(); frame();
-document.getElementById('pxTitle').textContent=SYM.label;
-loadBars().then(function(){ chLoad(); }).catch(function(){});
-EXK.forEach(connect);
-connectTape();
-pollDeep();
-tpoLoadSrc();
+/* ---------- KHỞI TẠO ----------
+   Vòng vẽ chạy TRƯỚC mọi thứ khác, và mỗi bước khởi tạo được bọc riêng.
+   Trước đây cả chín hàm nằm chung một dòng: một hàm lỗi là frame() không
+   bao giờ chạy và toàn bộ biểu đồ trắng. */
+frame();
+
+(function boot(){
+  var steps=[
+    ['chips',      renderChips],
+    ['log',        renderLog],
+    ['lớp flow',   renderFpTog],
+    ['khung',      renderTf],
+    ['chỉ báo',    renderInds],
+    ['lớp hiển thị',renderLayerTog],
+    ['api',        renderApi],
+    ['ds sàn',     renderExList],
+    ['trạng thái sàn', renderExStat],
+    ['nút tự học', initLearnUI],
+    ['tiêu đề',    function(){ var e=document.getElementById('pxTitle');
+                               if(e) e.textContent=SYM.label; }],
+    ['kết nối sàn',function(){ EXK.forEach(connect); }],
+    ['ticker',     connectTape],
+    ['sổ sâu',     pollDeep],
+    ['nguồn TPO',  tpoLoadSrc]
+  ];
+  var bad=[];
+  steps.forEach(function(st){
+    try{ st[1](); }
+    catch(e){ bad.push(st[0]+': '+e.message); console.error('[khởi tạo '+st[0]+']',e); }
+  });
+  // nạp nến sau cùng, không để lỗi của nó chặn phần còn lại
+  try{
+    loadBars().then(function(){ try{ chLoad(); }catch(e){} })
+              .catch(function(){});
+  }catch(e){ bad.push('nến: '+e.message); }
+
+  if(bad.length){
+    showErr('<b>Có '+bad.length+' phần khởi tạo lỗi.</b> Biểu đồ vẫn chạy, nhưng phần sau đây hỏng: '+
+            bad.join(' · ')+'. Mở F12 → Console để xem chi tiết.');
+  }
+})();
 })();
 </script>
 </body>
