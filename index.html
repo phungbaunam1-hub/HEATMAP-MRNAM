@@ -327,6 +327,10 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
         <div class="sechd">LỚP HIỂN THỊ</div>
         <div class="tfbar" id="layerTog"></div>
         <div class="indp" style="margin-top:4px">
+          <label>heatmap đậm <input type="range" id="chmG" min="0.15" max="1" step="0.05" value="0.42" style="width:64px"></label>
+          <label>lệnh ≥ $<input type="number" id="chmMin" value="0" step="5000" style="width:64px"></label>
+        </div>
+        <div class="indp" style="margin-top:4px">
           <label>chu kỳ TPO
             <select id="chTpoP" style="font-size:9px;padding:2px 3px">
               <option value="900000">M15</option><option value="1800000" selected>M30</option>
@@ -1047,6 +1051,7 @@ function switchSymbol(id){
   });
   FP.vp=new Map(); FP.barD=new Map(); FP.bigT=[]; FP.vpTick=0;
   TPO.profiles=[]; TPO.srcBars=null; TPO.moved=false; setTimeout(tpoLoadSrc,600);
+  HB.cols=[]; HB.tick=0;
   setFeed();
   setTimeout(function(){
     EXK.forEach(function(k){ EX[k].killed=false; });
@@ -2471,7 +2476,7 @@ function renderLayerTog(){
   var host=document.getElementById('layerTog'); if(!host) return;
   var items=[['candle','NẾN'],['tpo','TPO'],['va','VÙNG GIÁ TRỊ'],['ib','IB'],
              ['sp','SINGLE PRINT'],['tail','TAIL BOX'],['tpoDelta','TPO THEO DELTA'],
-             ['merge','GỘP TPO']];
+             ['merge','GỘP TPO'],['book','SỔ LỆNH'],['heat','HEATMAP']];
   host.innerHTML=items.map(function(it){
     return '<span class="tfb'+(LAYERS[it[0]]?' on':'')+'" data-layer="'+it[0]+'">'+it[1]+'</span>';
   }).join('');
@@ -2524,7 +2529,8 @@ var IND_DEFS={
   deltai:{name:'Volume Delta',pane:1,p:{ma:10,arrow:1.6},        c:'#3d7bff'}
 };
 var LAYERS={ candle:true, tpo:true, va:true, ib:true, sp:true, tail:true,
-             tpoDelta:true, prof:true, big:true, delta:true, heat:false, merge:false };
+             tpoDelta:true, prof:true, big:true, delta:true,
+             book:true, heat:true, merge:false };
 var CH={ tf:'1m', bars:[], i0:0, i1:0, cross:null, drag:null, uid:1, loading:false,
          tpoPeriod:1800000, mergeN:5,
   inds:[ {id:1,t:'ema',on:true,p:{len:9},  c:'#00e08a'},
@@ -2826,9 +2832,20 @@ function drawTPOLayer(ctx,W,H,X,Y,CW,i0,i1,mn,mx){
     ctx.beginPath(); ctx.moveTo(x1-2,Y(p.c)-3.5); ctx.lineTo(x1-2,Y(p.c)+3.5);
     ctx.lineTo(x1-8,Y(p.c)); ctx.closePath(); ctx.fill();
     // nhãn: shape, CVD, đấu giá chưa hoàn thành
+    if(wdt>72){
+      ctx.font='7px monospace';
+      ctx.fillStyle='#ffb01f'; ctx.fillText('POC '+pxs(p.poc), x0+3, Y(p.poc)-2);
+      ctx.fillStyle='#6f9bff';
+      ctx.fillText('VAH '+pxs(p.vah), x0+3, Y(p.vah)-2);
+      ctx.fillText('VAL '+pxs(p.val), x0+3, Y(p.val)+8);
+      if(p.ibh&&p.ibl){ ctx.fillStyle='#00e08a'; ctx.fillText('IB', x0+8, (Y(p.ibh)+Y(p.ibl))/2+3); }
+      if(p.sp&&p.sp.length){ ctx.fillStyle='#2ee6ff'; ctx.fillText('SP ×'+p.sp.length, x0+3, Y(p.sp[0])-2); }
+    }
     ctx.font='700 9px monospace';
     ctx.fillStyle='#dbe9f5';
-    ctx.fillText(p.shape+(p.merged?(' ×'+p.merged):''), x0+2, Y(p.h)-5);
+    var SM2={D:'cân bằng',P:'mua thắng',b:'bán thắng',B:'phân phối kép'};
+    ctx.fillText(p.shape+(p.merged?(' ×'+p.merged):'')+(wdt>96?(' · '+(SM2[p.shape]||'')):''),
+                 x0+2, Y(p.h)-5);
     // con số dưới chân cây = VOLUME DELTA của cây đó (tổng mua chủ động − bán chủ động)
     var dtxt=(p.cvd>=0?'+':'-')+big(Math.abs(p.cvd));
     var tw=ctx.measureText(dtxt).width+8;
@@ -2842,6 +2859,136 @@ function drawTPOLayer(ctx,W,H,X,Y,CW,i0,i1,mn,mx){
     if(p.poorHigh){ ctx.fillStyle='#ffb01f'; ctx.fillText('POOR HIGH', x0+2, Y(p.h)-13); }
     if(p.poorLow){ ctx.fillStyle='#ffb01f'; ctx.fillText('POOR LOW', x0+2, Y(p.l)+20); }
   });
+}
+
+
+
+/* ---------- bộ đệm heatmap theo thời gian thật, để vẽ TRONG khung nến ----------
+   Mỗi 2 giây chụp toàn bộ lệnh chờ của các sàn đang bật, gom theo mức giá. */
+var HB={tick:0, cols:[], min:0, gamma:0.42};
+function heatSample(){
+  var mid=consolidatedMid(); if(!mid) return;
+  if(!HB.tick) HB.tick=niceTick(mid);
+  var m=new Map(), any=false;
+  enabled().forEach(function(k){
+    var t=bookOf(k); if(!t||!t.b) return;
+    (t.b||[]).concat(t.a||[]).forEach(function(l){
+      var pp=+l[0], q=+l[1], n=pp*q;
+      if(!isFinite(n)||n<=0) return;
+      m.set(Math.round(pp/HB.tick),(m.get(Math.round(pp/HB.tick))||0)+n);
+      any=true;
+    });
+  });
+  if(!any) return;
+  HB.cols.push({t:Date.now(), m:m});
+  if(HB.cols.length>1800) HB.cols.shift();     // ~1 giờ
+}
+setInterval(function(){ try{ heatSample(); }catch(e){} },2000);
+
+/* ---------- vẽ heatmap trong khung nến, canh theo trục thời gian ---------- */
+function drawChartHeat(ctx,W,H,X,Y,CW,b,i0,i1,mn,mx,PAD,mainH,AX){
+  if(!HB.cols.length||!HB.tick) return 0;
+  var barMs = b.length>1? (b[1].t-b[0].t) : 60000;
+  var t0=b[i0].t;
+  function XT(t){ return X(i0+(t-t0)/barMs); }
+  var xMin=0, xMax=W-AX;
+  var vis=HB.cols.filter(function(c){ var x=XT(c.t); return x>=xMin-4 && x<=xMax+4; });
+  if(!vis.length) return 0;
+  var maxV=0;
+  vis.forEach(function(c){ c.m.forEach(function(v,k){
+    var pp=k*HB.tick; if(pp<mn||pp>mx) return;
+    if(HB.min>0&&v<HB.min) return;
+    if(v>maxV) maxV=v; }); });
+  if(!maxV) return 0;
+  var colW=Math.max(1.4,(2000/barMs)*CW);
+  var rowH=Math.max(1, Math.abs(Y(mn)-Y(mn+HB.tick)));
+  vis.forEach(function(c){
+    var x=XT(c.t);
+    c.m.forEach(function(v,k){
+      var pp=k*HB.tick; if(pp<mn||pp>mx) return;
+      if(HB.min>0&&v<HB.min) return;
+      ctx.fillStyle=hot(Math.pow(v/maxV,HB.gamma));
+      ctx.fillRect(x, Y(pp)-rowH/2, colW, Math.max(1,rowH));
+    });
+  });
+  ctx.fillStyle='#3d5266'; ctx.font='7px monospace';
+  ctx.fillText('HEATMAP LỆNH CHỜ · '+vis.length+' cột · '+(vis.length*2/60).toFixed(0)+' phút', 4, PAD+mainH-4);
+  return vis.length;
+}
+
+/* ---------- SỔ LỆNH · vẽ ở lề phải, vẽ ở lề phải chart ----------
+   Chỉ lấy LỆNH CHỜ (limit order đang nằm trong sổ), không phải lệnh đã khớp. */
+function drawBookLayer(ctx,W,H,Y,mn,mx,PAD,mainH,AX,xStart){
+  var on=enabled(); if(!on.length) return;
+  var mid=consolidatedMid(); if(!mid) return;
+  var tick=niceTick(mid);
+  var bid=new Map(), ask=new Map(), maxV=0, totB=0, totA=0;
+  on.forEach(function(k){
+    var t=bookOf(k); if(!t||!t.b) return;
+    (t.b||[]).forEach(function(l){
+      var p=+l[0], q=+l[1]; if(p<mn||p>mx) return;
+      var n=p*q; if(HM_MIN>0&&n<HM_MIN) return;
+      var key=Math.round(p/tick);
+      bid.set(key,(bid.get(key)||0)+n); totB+=n;
+    });
+    (t.a||[]).forEach(function(l){
+      var p=+l[0], q=+l[1]; if(p<mn||p>mx) return;
+      var n=p*q; if(HM_MIN>0&&n<HM_MIN) return;
+      var key=Math.round(p/tick);
+      ask.set(key,(ask.get(key)||0)+n); totA+=n;
+    });
+  });
+  bid.forEach(function(v){ maxV=Math.max(maxV,v); });
+  ask.forEach(function(v){ maxV=Math.max(maxV,v); });
+  if(!maxV) return;
+
+  // luôn dành một dải cố định sát trục giá; nếu lề phải rộng hơn thì dùng lề phải
+  var minW=Math.max(120,(W-AX)*0.15);
+  var x0=Math.min(Math.max(xStart, W-AX-minW), W-AX-minW);
+  if(x0<0) x0=0;
+  var wdt=(W-AX)-x0;
+  if(wdt<24) return;
+  var rowH=Math.max(1.2, Math.abs(Y(mn)-Y(mn+tick)));
+
+  if(LAYERS.book){
+    ctx.fillStyle='rgba(4,7,11,.72)'; ctx.fillRect(x0,PAD,wdt,mainH);
+    function ladder(m,col){
+      m.forEach(function(v,k){
+        var p=k*tick; if(p<mn||p>mx) return;
+        var len=(v/maxV)*(wdt-4);
+        ctx.fillStyle=col; ctx.globalAlpha=.8;
+        ctx.fillRect(x0+2, Y(p)-rowH/2, Math.max(1,len), Math.max(1,rowH-0.5));
+        ctx.globalAlpha=1;
+        // ghi số volume của mức giá đó
+        if(rowH>=7 && wdt>=64 && v>maxV*0.06){
+          ctx.fillStyle='#dbe9f5'; ctx.font=Math.min(9,Math.max(6,rowH-2))+'px monospace';
+          var lbl='$'+big(v);
+          ctx.fillText(lbl, x0+4, Y(p)+Math.min(3,rowH/2-0.5));
+        }
+      });
+    }
+    ladder(bid,'#00e08a'); ladder(ask,'#ff3d5a');
+    // tường lớn nhất mỗi bên: ghi giá và giá trị
+    function markTop(m,col,lab){
+      var bk=null,bv=0;
+      m.forEach(function(v,k){ if(v>bv){bv=v;bk=k;} });
+      if(!bk) return;
+      var p=bk*tick, y=Y(p);
+      ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([3,2]);
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(x0,y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=col; ctx.font='8px monospace';
+      ctx.fillText(lab+' '+pxs(p)+' · $'+big(bv), x0-Math.min(150,x0-4), y-3);
+    }
+    markTop(ask,'#ff3d5a','TƯỜNG BÁN');
+    markTop(bid,'#00e08a','TƯỜNG MUA');
+  }
+  // nhãn
+  ctx.fillStyle='#3d5266'; ctx.font='7px monospace';
+  ctx.fillText('LỆNH CHỜ · '+on.length+' SÀN', x0+2, PAD+9);
+  ctx.fillStyle='#00e08a'; ctx.fillText('MUA $'+big(totB), x0+2, PAD+mainH-12);
+  ctx.fillStyle='#ff3d5a'; ctx.fillText('BÁN $'+big(totA), x0+2, PAD+mainH-3);
+  ctx.strokeStyle='#131e29'; ctx.beginPath();
+  ctx.moveTo(x0,PAD); ctx.lineTo(x0,PAD+mainH); ctx.stroke();
 }
 
 /* ---- vẽ ---- */
@@ -2895,6 +3042,13 @@ reg('chart',function(ctx,W,H){
     var lbl = TFMS[CH.tf]>=86400000? (dt.getDate()+'/'+(dt.getMonth()+1))
       : (String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0'));
     ctx.fillStyle='#3d5266'; ctx.fillText(lbl, xx-13, H-6);
+  }
+
+  // heatmap lệnh chờ, vẽ dưới cùng trong khung nến
+  if(LAYERS.heat){
+    try{ drawChartHeat(ctx,W,H,X,Y,CW,b,i0,i1,mn,mx,PAD,mainH,AX); }
+    catch(e){ ctx.fillStyle='#ff3d5a'; ctx.font='8px monospace';
+              ctx.fillText('lỗi heatmap: '+e.message,6,PAD+mainH-14); }
   }
 
   // lớp TPO chồng lên nến
@@ -3004,6 +3158,14 @@ reg('chart',function(ctx,W,H){
       if(rr2>10){ ctx.fillStyle='#eef6ff'; ctx.font='7px monospace'; ctx.textAlign='center';
         ctx.fillText(big(z.n), bx, byy+2.5); ctx.textAlign='left'; }
     });
+  }
+
+  // ---- sổ lệnh chờ + heatmap theo đúng mức giá (vẽ ở lề phải) ----
+  if(LAYERS.book||LAYERS.heat){
+    var lastX = n? X(i0+n-1)+CW/2 : 0;
+    try{ drawBookLayer(ctx,W,H,Y,mn,mx,PAD,mainH,AX,lastX+4); }
+    catch(e){ ctx.fillStyle='#ff3d5a'; ctx.font='8px monospace';
+              ctx.fillText('lỗi sổ lệnh: '+e.message, 6, PAD+mainH-4); }
   }
 
   // giá hiện tại
@@ -3216,6 +3378,10 @@ document.addEventListener('input',function(e){
 (function(){
   var bm=document.getElementById('bigMult');
   if(bm) bm.addEventListener('input',function(e){ FP.bigMult=Math.max(3,+e.target.value||40); });
+  var cg=document.getElementById('chmG');
+  if(cg) cg.addEventListener('input',function(e){ HB.gamma=+e.target.value||0.42; });
+  var cm=document.getElementById('chmMin');
+  if(cm) cm.addEventListener('input',function(e){ HB.min=Math.max(0,+e.target.value||0); });
   var tp=document.getElementById('chTpoP');
   if(tp) tp.addEventListener('change',function(e){ CH.tpoPeriod=+e.target.value;
     try{ CH.tpoCache=chBuildTPO(); }catch(err){} });
@@ -4022,18 +4188,71 @@ reg('tpoc',function(c,W,H){
       }
     });
     if(colW>8){
-      c.strokeStyle='#ffb01f'; c.lineWidth=1.2;
+      // tail box: phần ngoài vùng giá trị ở hai cực
+      c.strokeStyle='rgba(120,145,168,.30)'; c.lineWidth=1;
+      c.fillStyle='rgba(120,145,168,.06)';
+      c.fillRect(x0+1,Y(p.h),colW-3,Math.max(1,Y(p.vah)-Y(p.h)));
+      c.strokeRect(x0+1,Y(p.h),colW-3,Math.max(1,Y(p.vah)-Y(p.h)));
+      c.fillRect(x0+1,Y(p.val),colW-3,Math.max(1,Y(p.l)-Y(p.val)));
+      c.strokeRect(x0+1,Y(p.val),colW-3,Math.max(1,Y(p.l)-Y(p.val)));
+      // single print trong VA
+      p.sp.forEach(function(pp){
+        if(pp<lo||pp>hi) return;
+        c.fillStyle='#2ee6ff';
+        c.fillRect(x0+1, Y(pp)-Math.max(0.8,rowH*0.35), colW-3, Math.max(1.6,rowH*0.7));
+      });
+      // POC / VAH / VAL
+      c.strokeStyle='#ffb01f'; c.lineWidth=1.4;
       c.beginPath(); c.moveTo(x0+1,Y(p.poc)); c.lineTo(x0+colW-2,Y(p.poc)); c.stroke();
-      c.strokeStyle='#3d7bff88'; c.lineWidth=1;
+      c.strokeStyle='#3d7bffaa'; c.lineWidth=1;
       [p.vah,p.val].forEach(function(v){
         c.beginPath(); c.moveTo(x0+1,Y(v)); c.lineTo(x0+colW-2,Y(v)); c.stroke(); });
-      c.fillStyle='#ff4fb2'; c.beginPath(); c.arc(x0+3,Y(p.o),2,0,6.3); c.fill();
+      // IB — biên độ 60 phút đầu chu kỳ
+      if(p.ibh&&p.ibl){
+        c.strokeStyle='#00e08a'; c.lineWidth=2.6;
+        c.beginPath(); c.moveTo(x0+2.5,Y(p.ibh)); c.lineTo(x0+2.5,Y(p.ibl)); c.stroke();
+        c.lineWidth=1;
+        c.beginPath(); c.moveTo(x0+1,Y(p.ibh)); c.lineTo(x0+7,Y(p.ibh));
+        c.moveTo(x0+1,Y(p.ibl)); c.lineTo(x0+7,Y(p.ibl)); c.stroke();
+      }
+      // giá mở / đóng
+      c.fillStyle='#ff4fb2'; c.beginPath(); c.arc(x0+4,Y(p.o),2.4,0,6.3); c.fill();
       c.fillStyle= p.c>=p.o? '#00e08a':'#ff3d5a';
-      c.beginPath(); c.moveTo(x0+colW-3,Y(p.c)-3); c.lineTo(x0+colW-3,Y(p.c)+3);
-      c.lineTo(x0+colW-8,Y(p.c)); c.closePath(); c.fill();
-      c.font='7px monospace'; c.fillStyle='#5b7186'; c.fillText(p.shape, x0+2, 10);
-      if(p.poorHigh){ c.fillStyle='#ffb01f'; c.fillText('PH', x0+colW-15, Y(p.h)-2); }
-      if(p.poorLow){ c.fillStyle='#ffb01f'; c.fillText('PL', x0+colW-15, Y(p.l)+8); }
+      c.beginPath(); c.moveTo(x0+colW-3,Y(p.c)-3.5); c.lineTo(x0+colW-3,Y(p.c)+3.5);
+      c.lineTo(x0+colW-9,Y(p.c)); c.closePath(); c.fill();
+      // nhãn các mốc ngay trên cây khi đủ rộng
+      if(colW>66){
+        c.font='7px monospace';
+        c.fillStyle='#ffb01f'; c.fillText('POC '+pxs(p.poc), x0+3, Y(p.poc)-2);
+        c.fillStyle='#6f9bff'; c.fillText('VAH '+pxs(p.vah), x0+3, Y(p.vah)-2);
+        c.fillStyle='#6f9bff'; c.fillText('VAL '+pxs(p.val), x0+3, Y(p.val)+8);
+        if(p.ibh&&p.ibl){ c.fillStyle='#00e08a'; c.fillText('IB', x0+9, (Y(p.ibh)+Y(p.ibl))/2+3); }
+        if(p.sp.length){ c.fillStyle='#2ee6ff';
+          c.fillText('SP ×'+p.sp.length, x0+3, Y(p.sp[0])-2); }
+      }
+      // nhãn shape + ý nghĩa
+      var SM={D:'cân bằng',P:'mua thắng',b:'bán thắng',B:'phân phối kép'};
+      c.font='700 9px monospace'; c.fillStyle='#dbe9f5'; c.fillText(p.shape, x0+2, 11);
+      if(colW>58){ c.font='7px monospace'; c.fillStyle='#5b7186';
+        c.fillText(SM[p.shape]||'', x0+11, 11); }
+      if(p.poorHigh){ c.fillStyle='#ffb01f'; c.font='7px monospace'; c.fillText('PH', x0+colW-15, Y(p.h)-2); }
+      if(p.poorLow){ c.fillStyle='#ffb01f'; c.font='7px monospace'; c.fillText('PL', x0+colW-15, Y(p.l)+8); }
+      // VA breakout / dịch chuyển
+      if(p.vaMove && colW>44){
+        c.font='7px monospace';
+        c.fillStyle = p.vaMove.indexOf('BREAK')===0? '#ffb01f':'#44586b';
+        c.fillText(p.vaMove, x0+2, 21);
+      }
+      // CVD của CHÍNH cây này, đặt ngay dưới chân cây
+      var dtxt=(p.cvd>=0?'+':'-')+big(Math.abs(p.cvd));
+      c.font='700 8px monospace';
+      var tw=c.measureText(dtxt).width+7;
+      var byy=Math.min(dy-6, Y(p.l)+7);
+      c.fillStyle='#0a0f14'; c.fillRect(x0+1, byy, Math.min(tw,colW-3), 12);
+      c.strokeStyle= p.cvd>=0?'#144a35':'#4b1a24'; c.lineWidth=1;
+      c.strokeRect(x0+1, byy, Math.min(tw,colW-3), 12);
+      c.fillStyle= p.cvd>=0?'#00e08a':'#ff3d5a';
+      c.fillText(dtxt, x0+4, byy+9);
     }
   });
 
@@ -4091,9 +4310,19 @@ reg('tpoc',function(c,W,H){
       c.fillStyle=x[2]; c.font='8px monospace'; c.fillText(x[0]+' '+pxs(x[1]), 3, yy2-3);
     });
   }
-  c.fillStyle='#2b3b4a'; c.font='7px monospace';
-  c.fillText(tpoLabel()+' · '+Math.round(TPO.i1-TPO.i0)+'/'+ALL.length+' cây · cuộn để zoom, kéo để trượt',
-             4, H-2);
+  // chú giải
+  var lg=[['#ffb01f','POC'],['#3d7bff','VAH/VAL'],['#00e08a','IB'],['#2ee6ff','SINGLE PRINT'],
+          ['#ff4fb2','GIÁ MỞ'],['rgba(120,145,168,.5)','TAIL BOX']];
+  var lx=4;
+  c.font='7px monospace';
+  lg.forEach(function(g){
+    c.fillStyle=g[0]; c.fillRect(lx,H-9,6,6);
+    c.fillStyle='#44586b'; c.fillText(g[1], lx+9, H-4);
+    lx+=13+c.measureText(g[1]).width;
+  });
+  c.fillStyle='#2b3b4a';
+  c.fillText(tpoLabel()+' · '+Math.round(TPO.i1-TPO.i0)+'/'+ALL.length+' cây · D cân bằng · P mua thắng · b bán thắng · B phân phối kép',
+             Math.min(lx+10,W-330), H-4);
 });
 
 /* ---- cuộn / zoom cho dải TPO ---- */
