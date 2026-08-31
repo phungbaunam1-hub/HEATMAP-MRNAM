@@ -251,6 +251,15 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
   .flow{grid-template-columns:1fr 118px}
 }
 
+/* ================= KHOÁ CHÊNH LỆCH HAI CHIỀU ================= */
+.lkgrid{display:grid;grid-template-columns:1fr 300px;gap:9px;padding:8px}
+.lkboxes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:7px}
+@media(max-width:1100px){ .lkgrid{grid-template-columns:1fr} .lkboxes{grid-template-columns:repeat(2,1fr)} }
+.lkrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:8.5px;color:var(--dim);margin-bottom:6px}
+.lkrow input{width:56px}
+.lkcv{width:100%;height:96px;display:block;border:1px solid var(--line2);border-radius:2px;background:#060b10}
+.lknote{font-size:8px;color:#3d5266;line-height:1.6;margin-top:6px}
+
 /* ================= BẢNG TỔNG HỢP TÍN HIỆU ================= */
 .mst{display:grid;grid-template-columns:1fr 330px;gap:9px;padding:8px}
 .msttab{width:100%;border-collapse:collapse;font-size:9px}
@@ -394,6 +403,84 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
         <div id="mstSide"></div>
         <div class="sechd2">CHẶN VÀO LỆNH CỦA MÁY GIAO DỊCH</div>
         <div class="diagbox" id="diagbox" style="grid-column:auto"></div>
+        <div class="sechd2">CHI PHÍ THỰC · CÁCH TÍNH TP/SL</div>
+        <div class="lkrow">
+          <label>hoa hồng <input type="number" id="cstComm" value="2" step="0.5">bp/chiều</label>
+          <label>trượt giá <input type="number" id="cstSlip" value="0.5" step="0.1">bp/chiều</label>
+        </div>
+        <div class="lkrow">
+          <label>spread
+            <select id="cstSprMode" style="font-size:9px;padding:2px 3px">
+              <option value="auto" selected>đo từ sổ lệnh</option>
+              <option value="manual">nhập tay</option>
+            </select></label>
+          <input type="number" id="cstSpr" value="1" step="0.1" disabled>bp
+          <label>vào lệnh
+            <select id="cstEntry" style="font-size:9px;padding:2px 3px">
+              <option value="taker" selected>thị trường</option>
+              <option value="maker">lệnh chờ</option>
+            </select></label>
+        </div>
+        <div class="lkrow">
+          <label><select id="cstSwapMode" style="font-size:9px;padding:2px 3px">
+              <option value="funding" selected>funding</option>
+              <option value="points">swap CFD</option>
+            </select>
+            <input type="number" id="cstSwap" value="3" step="0.5"><span id="cstSwapLb">bp/ngày</span></label>
+          <label>giữ lệnh <input type="number" id="cstHold" value="90" step="15">phút</label>
+        </div>
+        <div class="lkrow"><span class="tfb on" id="cstAuto">TỰ NỚI TP/SL THEO PHÍ · BẬT</span></div>
+        <div id="cstBox"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KHOÁ CHÊNH LỆCH HAI CHIỀU -->
+  <div class="p c12">
+    <div class="ph"><span class="dot" style="background:var(--cyn);box-shadow:0 0 6px var(--cyn)"></span>
+      <h2>KHOÁ CHÊNH LỆCH HAI CHIỀU · TÍCH LUỸ LIÊN TỤC</h2>
+      <div class="tags">
+        <span class="thr">KIỂU
+          <select id="lkMode" style="font-size:9px;padding:2px 4px">
+            <option value="multi" selected>đa sàn (mua bid / bán ask)</option>
+            <option value="bin">nhị phân (LÊN + XUỐNG = 100)</option>
+          </select></span>
+        <span class="tfb" id="lkTog">MÁY KHOÁ · TẮT</span>
+        <span class="tfb" id="lkReset">RESET</span>
+      </div></div>
+    <div class="lkgrid">
+      <div>
+        <div class="lkrow" id="lkMulti">
+          <label>vốn gốc $<input type="number" id="lkCap" value="10000" step="1000"></label>
+          <label>mỗi vòng <input type="number" id="lkPer" value="5" step="1">% vốn</label>
+          <label>phí maker/chân <input type="number" id="lkMk" value="0.5" step="0.1">bp</label>
+          <label>đệm tối thiểu <input type="number" id="lkBuf" value="1.5" step="0.5">bp</label>
+          <label>chờ chân 2 <input type="number" id="lkLeg" value="45" step="5">s</label>
+        </div>
+        <div class="lkboxes" id="lkStat"></div>
+        <canvas id="lockeq" class="lkcv"></canvas>
+        <div class="sechd2">VÒNG ĐANG TREO</div>
+        <div id="lkOpen"></div>
+        <div class="sechd2">VÒNG ĐÃ CHỐT</div>
+        <div id="lkDone"></div>
+        <div class="lknote">Chân MUA treo ở bid sàn có giá mua cao nhất, chân BÁN treo ở ask sàn có giá bán thấp nhất.
+          Hai chân khớp ở hai thời điểm khác nhau; khớp đủ cả hai là khoá xong phần chênh, không phụ thuộc giá đi đâu.
+          Chỉ khớp một chân trong thời gian chờ thì đóng bù bằng giá thị trường — đó là rủi ro thật của kiểu này.
+          Mô phỏng khớp bằng chính các lệnh khớp thật chạy qua mức đã treo, chưa gửi lệnh lên sàn.
+          Phí maker mặc định 0.5bp chỉ đúng với tài khoản có bậc phí thấp hoặc hoàn phí; với phí spot phổ thông 10bp
+          mỗi chân thì spread gộp giữa các sàn gần như không bao giờ đủ, máy sẽ đứng im — đó là kết quả đúng, không phải lỗi.</div>
+      </div>
+      <div id="lkBinWrap" style="display:none">
+        <div class="lkrow">
+          <label>phía LÊN <input type="number" id="lkUp" value="47" step="1"> cent</label>
+          <label>phía XUỐNG <input type="number" id="lkDn" value="52" step="1"> cent</label>
+        </div>
+        <div class="lkrow">
+          <label>số hợp đồng <input type="number" id="lkQty" value="100" step="10"></label>
+          <label>phí <input type="number" id="lkFee" value="0" step="0.1"> cent</label>
+          <button class="btn" id="lkBinAdd" style="padding:3px 8px">GHI VÒNG</button>
+        </div>
+        <div id="lkBin"></div>
       </div>
     </div>
   </div>
@@ -824,6 +911,7 @@ function onTrade(ex,px,qty,side,ts){
   try{ msTrade(px,n,side==='buy'); }catch(e){}
   try{ fpTick(px,n,side==='buy',ts); }catch(e){}
   try{ agvLive(ex,px,qty,ts); }catch(e){}
+  try{ lockOnPrint(ex,px,side==='buy'); }catch(e){}
   S.prints.push({p:px,n:n,b:side==='buy',ex:ex,t:ts||Date.now()});
   if(S.prints.length>520) S.prints.shift();
   S.tpsWin.push(Date.now());
@@ -1702,8 +1790,10 @@ function openPaper(side,px,notional,why){
   if(S.pos) return false;
   if(!px||!isFinite(px)) return false;
   var A=S.atr||px*0.001;
+  var SOL=solveTPSL(px,side, side>0? px-1.2*A : px+1.2*A, side>0? px+2.4*A : px-2.4*A, A);
   S.pos={side:side,px:px,notional:notional||CAPITAL*0.05,t:Date.now(),
-         sl: side>0? px-1.2*A : px+1.2*A, tp: side>0? px+2.4*A : px-2.4*A};
+         sl: SOL? SOL.sl : (side>0? px-1.2*A : px+1.2*A),
+         tp: SOL? SOL.tp : (side>0? px+2.4*A : px-2.4*A)};
   pushLog(side>0?'OPEN L':'OPEN S', why||'thủ công', null);
   return true;
 }
@@ -2610,8 +2700,16 @@ function resetLab(){
 }
 
 document.getElementById('feeSel').addEventListener('change',function(e){
-  FEE_BP=+e.target.value; resetLab();
-  pushLog('CẤU HÌNH','phí khứ hồi → '+FEE_BP+'bp, đã reset thống kê',null);
+  var v=+e.target.value;
+  if(v<=4){ COST.commBp=2;  COST.slipBp=0.2; COST.entry='maker'; }
+  else if(v<=10){ COST.commBp=5;  COST.slipBp=0.5; COST.entry='taker'; }
+  else if(v<=20){ COST.commBp=10; COST.slipBp=1.0; COST.entry='taker'; }
+  else { COST.commBp=10; COST.slipBp=3.0; COST.entry='taker'; }
+  var cc=document.getElementById('cstComm'); if(cc) cc.value=COST.commBp;
+  var cs=document.getElementById('cstSlip'); if(cs) cs.value=COST.slipBp;
+  var ce=document.getElementById('cstEntry'); if(ce) ce.value=COST.entry;
+  feeSync(); resetLab(); try{ renderCost(); }catch(e2){}
+  pushLog('CẤU HÌNH','chi phí vòng lệnh → '+FEE_BP.toFixed(2)+'bp, đã reset thống kê',null);
 });
 
 document.getElementById('minRIn').addEventListener('input',function(e){ MIN_R=Math.max(0.5,+e.target.value||1.15); });
@@ -3862,6 +3960,11 @@ function runStrat(id){
   st.z=z;
 
   var TP=TP_MULT, SL=SL_MULT, MAXHOLD=45*60000;
+  if(AUTO_TPSL && A>0 && px>0){                  // nở biên theo chi phí, cùng công thức với lệnh thật
+    var cf=feeSync()/10000, slF=Math.max(SL*A/px, cf*SL_COST_K, 0.6*A/px);
+    var tpF=Math.max(TP*A/px, MIN_R*1.05*(slF+cf)+cf);
+    SL=slF*px/A; TP=tpF*px/A;
+  }
   if(st.pos){
     var mv=st.pos.side*(px-st.pos.px);
     var u=mv/st.pos.px*st.pos.notional;
@@ -3880,7 +3983,7 @@ function runStrat(id){
   }
   if(!st.pos && Math.abs(z)>S.enter && Date.now()-(st.lastClose||0)>30000){
     // biên độ mục tiêu phải đủ lớn so với phí, nếu không thì đừng vào
-    var edgePct=(TP*A)/px, stopPct=(SL*A)/px, costPct=FEE_BP/10000;
+    var edgePct=(TP*A)/px, stopPct=(SL*A)/px, costPct=feeSync()/10000;
     if((edgePct-costPct)/(stopPct+costPct) > MIN_R){
       var notional=CAPITAL*Math.abs(kellyF());
       if(notional>300) st.pos={side:z>0?1:-1,px:px,notional:notional,t:Date.now()};
@@ -4403,7 +4506,11 @@ function buildSetup(){
     if(wantUp && zz.side==='supply' && zz.lo>px){ if(!opp||zz.lo<opp.lo) opp=zz; }
     if(!wantUp && zz.side==='demand' && zz.hi<px){ if(!opp||zz.hi>opp.hi) opp=zz; }
   });
-  var tp = opp? (wantUp?opp.lo:opp.hi) : (wantUp? px+Math.abs(px-sl)*2 : px-Math.abs(px-sl)*2);
+  var tp0 = opp? (wantUp?opp.lo:opp.hi) : (wantUp? px+Math.abs(px-sl)*2 : px-Math.abs(px-sl)*2);
+  // SL theo cấu trúc, TP theo vùng đối diện — rồi nới cả hai cho đủ ăn phí
+  var SOL=solveTPSL(px,side,sl,tp0,A);
+  if(SOL){ sl=SOL.sl; }
+  var tp= SOL? SOL.tp : tp0;
   var risk=Math.abs(px-sl), reward=Math.abs(tp-px);
   var rr= risk? reward/risk : 0;
 
@@ -4418,7 +4525,7 @@ function buildSetup(){
       'Người mua cuối cùng đã xuất hiện, phía dưới còn '+(opp?('vùng cầu '+pxs(opp.hi)):'khoảng trống')+' để giá rơi về.';
 
   TPO.setup={ ok:ok, side:side, checks:C, score:score, lscore:lscore, useL:useL, zone:z,
-    entry:px, sl:sl, tp:tp, rr:rr, story:story,
+    entry:px, sl:sl, tp:tp, rr:rr, story:story, cost:SOL, tpRaw:tp0,
     why: ok? story : (!must? 'Bối cảnh TPO đang đi ngược hướng vùng này — không trả giá.'
                             : (useL? 'Điểm đã học '+lscore.toFixed(2)+'/9 (thô '+score+'), cần '+TPO.minCond+'.'
                                      : 'Mới '+score+'/9 điều kiện, cần '+TPO.minCond+'.')) };
@@ -4979,7 +5086,9 @@ setInterval(function(){
   var steps=[['micro',msTick],['factor',computeSignal],['tpo',tpoTick],
              ['trade',paperTrade],['lab',labTick],
              ['ui',function(){ renderStats(); renderMS(); renderTPO(); }],
-             ['tổng hợp',function(){ renderMaster(); }]];
+             ['tổng hợp',function(){ renderMaster(); }],
+             ['khoá chênh',function(){ renderLock(); }],
+             ['chi phí',function(){ feeSync(); renderCost(); }]];
   var errs=[];
   for(var i=0;i<steps.length;i++){
     try{ steps[i][1](); }
@@ -5491,23 +5600,27 @@ function masterSignal(){
 
   /* --- điểm vào/dừng/chốt: ưu tiên tín hiệu thật, sau đó TPO, cuối cùng ATR --- */
   var px=S.lastPx||0, A=S.atr||px*0.0012;
-  var sg=activeSignal(), st=TPO.setup, srcTxt='', entry=px, sl=0, tp=0;
+  var sg=activeSignal(), st=TPO.setup, srcTxt='', entry=px, sl=0, tp=0, SOL=null;
   if(sg && sg.side===side){ entry=sg.entry; sl=sg.sl; tp=sg.tp; srcTxt='tín hiệu TPO còn hạn'; }
   else if(st && st.side===side && st.zone){ entry=st.entry; sl=st.sl; tp=st.tp; srcTxt='setup TPO tại '+st.zone.src; }
   else if(side){
     sl = side>0? px-SL_MULT*A : px+SL_MULT*A;
     tp = side>0? px+TP_MULT*A : px-TP_MULT*A;
-    srcTxt='ATR '+SL_MULT+'/'+TP_MULT+' (chưa có setup vùng)';
+    srcTxt='ATR '+SL_MULT+'/'+TP_MULT+' rồi nới theo phí';
     // kéo TP về trước bức tường lớn gần nhất nếu tường nằm trong đường đi
     S.walls.forEach(function(w){
       if(side>0 && w.side==='ask' && w.p>px && w.p<tp) tp=w.p-A*0.15;
       if(side<0 && w.side==='bid' && w.p<px && w.p>tp) tp=w.p+A*0.15;
     });
   }
+  if(side){                                  // mọi nhánh đều phải qua bộ giải chi phí
+    SOL=solveTPSL(entry||px,side,sl,tp,A);
+    if(SOL){ sl=SOL.sl; tp=SOL.tp; if(SOL.adj.length) srcTxt+=' · '+SOL.adj.length+' chỉnh theo phí'; }
+  }
   var risk=Math.abs(entry-sl), rew=Math.abs(tp-entry);
   var rr= risk? rew/risk : 0;
-  var c=FEE_BP/10000;
-  var netR= (risk&&px)? ((rew/px)-c)/((risk/px)+c) : 0;
+  var c=feeSync()/10000;
+  var netR= SOL? SOL.netR : ((risk&&px)? ((rew/px)-c)/((risk/px)+c) : 0);
 
   /* --- điều kiện chặn --- */
   var blocks=[];
@@ -5518,6 +5631,10 @@ function masterSignal(){
   if(enabled().length>1 && S.disp>DISP_MAX) blocks.push('giá các sàn phân tán '+(S.disp*100).toFixed(2)+'%');
   if(GATE_RR && rr<1.4 && side) blocks.push('R:R '+rr.toFixed(2)+' < 1.4');
   if(GATE_COST && side && netR<MIN_R) blocks.push('R sau phí '+netR.toFixed(2)+' < '+MIN_R);
+  if(side && SOL && !SOL.viable)
+    blocks.push('TP '+(SOL.tpPct*100).toFixed(3)+'% vượt tầm với của khung '+(SIG_TF||15)+
+                'm trong '+COST.holdMin+' phút — cần ATR ≥ '+SOL.needAtrPct.toFixed(3)+
+                '% hoặc giữ ≥ '+SOL.needHoldMin+'p hoặc lên khung ~'+SOL.needTf+'m');
   if(S.pos) blocks.push('đang có lệnh '+(S.pos.side>0?'MUA':'BÁN')+' — chờ đóng');
   if(Date.now()-S.lastCloseTs<90000 && S.lastCloseTs) blocks.push('đang nghỉ sau lệnh vừa đóng');
   if(side && risk/px > 0.02) blocks.push('khoảng dừng lỗ quá rộng ('+(risk/px*100).toFixed(2)+'%)');
@@ -5542,7 +5659,7 @@ function masterSignal(){
             need: (tpN? 'cần biên TP ≥ '+(tpN*100).toFixed(3)+'% giá' : '')+
                   (atrN? ' · hoặc ATR ≥ '+(atrN*100).toFixed(3)+'% giá (nay '+
                         ((S.atr/(px||1))*100).toFixed(3)+'%)' : ''),
-            stats: signalStats(),
+            stats: signalStats(), sol:SOL,
             agree:agree, against:against, ok: side!==0 && !blocks.length };
   return MST.dec;
 }
@@ -5583,6 +5700,12 @@ function renderMaster(){
          ' '+(SYM.id.replace(/USDT?$/,''))+(SYM.id.indexOf('XAU')===0? ' · '+d.lots.toFixed(2)+' lot':'')+'</b></div>'+
        '<div class="mrow"><span>RỦI RO NẾU SL</span><b style="color:var(--red)">'+fmt(d.riskUsd)+'</b></div>'+
        '<div class="mrow"><span>NGUỒN GIÁ VÀO</span><b style="font-size:9px">'+(d.src||'—')+'</b></div>'+
+       '<div class="mrow"><span>CHI PHÍ VÒNG LỆNH</span><b>'+FEE_BP.toFixed(2)+'bp = '+
+         fmt(d.notional*FEE_BP/10000)+'</b></div>'+
+       (d.sol&&d.sol.adj.length? '<div class="mblk" style="color:#8fb2cc;margin-top:4px">'+
+         d.sol.adj.map(function(a){ return '<div>· '+a+'</div>'; }).join('')+
+         (d.sol.beyond? '<div style="color:var(--amb)">· TP phải vượt qua vùng đối diện — xác suất chạm thấp hơn</div>':'')+
+         '</div>' : '')+
        '<div class="mrow"><span>LỊCH SỬ TÍN HIỆU</span><b>'+
          (d.stats.done? (d.stats.w+'T/'+d.stats.l+'B · thắng '+(d.stats.win*100).toFixed(0)+
                          '% · R tb '+d.stats.avgR.toFixed(2)) : 'chưa đủ mẫu')+'</b></div>';
@@ -5653,11 +5776,380 @@ document.addEventListener('click',function(e){
   tag.parentNode.insertBefore(b,tag);
 })();
 
+
+/* ==================================================================
+   KHÓA CHÊNH LỆCH HAI CHIỀU · TÍCH LŨY LIÊN TỤC
+   Ý tưởng: tích luỹ vị thế ở CẢ HAI phía tại hai thời điểm khác nhau,
+   đều bằng LỆNH CHỜ. Khi tổng chi phí hai chân < giá trị chắc chắn
+   của cặp, phần chênh là lợi nhuận đã khoá, không phụ thuộc hướng giá.
+     · chế độ NHỊ PHÂN : phía LÊN + phía XUỐNG = 100 cent.
+                         mua 47 + mua 52 = 99 -> khoá 1 cent.
+     · chế độ ĐA SÀN   : cùng một tài sản, chân MUA treo ở bid sàn này,
+                         chân BÁN treo ở ask sàn kia. Khoá được
+                         (ask − bid) − phí hai chân.
+   Vòng nào khoá xong thì cộng vốn, vòng sau vào lệnh to hơn -> lãi kép.
+   ================================================================== */
+var LOCK={
+  on:false, mode:'multi',
+  cap:10000, cap0:10000, perPct:5, bufBp:1.5, legMs:45000, maxOpen:3, makerBp:0.5,
+  open:[], done:[], eq:[], startTs:0, id:1,
+  win:0, loss:0, grossBp:0, lastScan:0,
+  bin:{ up:47, dn:52, qty:100, fee:0, ledger:[], cap:1000, cap0:1000 }
+};
+function lockFeeLeg(){ return LOCK.makerBp; }    // phí MAKER một chân, bp — lệnh chờ nên không dùng phí taker
+
+function lockQuotes(){
+  var on=enabled(), best=null, i;
+  var bidV=null, askV=null;
+  for(i=0;i<on.length;i++){
+    var k=on[i], q=S.quotes[k];
+    if(!q||!(q.bid>0)||!(q.ask>q.bid)||Date.now()-q.ts>4000) continue;
+    if(!bidV||q.bid>bidV.p) bidV={k:k,p:q.bid};
+    if(!askV||q.ask<askV.p) askV={k:k,p:q.ask};
+  }
+  if(!bidV||!askV) return null;
+  var mid=(bidV.p+askV.p)/2;
+  return {buy:bidV, sell:askV, mid:mid,
+          spreadBp:(askV.p-bidV.p)/mid*10000,
+          edgeBp:(askV.p-bidV.p)/mid*10000 - lockFeeLeg()*2};
+}
+function lockScan(){
+  if(SYM.bridge) return;
+  var Q=lockQuotes(); LOCK.q=Q;
+  if(!LOCK.on||!Q) return;
+  if(LOCK.open.length>=LOCK.maxOpen) return;
+  if(Q.edgeBp < LOCK.bufBp) return;                 // chưa đủ ăn phí + đệm
+  if(Date.now()-LOCK.lastScan<1500) return;
+  LOCK.lastScan=Date.now();
+  var notional=Math.max(50, LOCK.cap*LOCK.perPct/100);
+  LOCK.open.push({
+    id:LOCK.id++, t:Date.now(), notional:notional,
+    buy :{ex:Q.buy.k,  px:Q.buy.p,  filled:false, t:0},
+    sell:{ex:Q.sell.k, px:Q.sell.p, filled:false, t:0},
+    edgeBp:Q.edgeBp, mid:Q.mid
+  });
+}
+/* mô phỏng khớp bằng CHÍNH các lệnh khớp thật chạy qua mức giá đã treo */
+function lockOnPrint(ex,px,buySide){
+  if(!LOCK.on||!LOCK.open.length) return;
+  for(var i=0;i<LOCK.open.length;i++){
+    var c=LOCK.open[i];
+    // chân MUA treo ở bid: khớp khi có lệnh BÁN chủ động quét xuống tới đó
+    if(!c.buy.filled && ex===c.buy.ex && !buySide && px<=c.buy.px){ c.buy.filled=true; c.buy.t=Date.now(); }
+    // chân BÁN treo ở ask: khớp khi có lệnh MUA chủ động đẩy lên tới đó
+    if(!c.sell.filled && ex===c.sell.ex && buySide && px>=c.sell.px){ c.sell.filled=true; c.sell.t=Date.now(); }
+  }
+}
+function lockTick(){
+  var now=Date.now(), px=S.lastPx, Q=LOCK.q;
+  for(var i=LOCK.open.length-1;i>=0;i--){
+    var c=LOCK.open[i], both=c.buy.filled&&c.sell.filled;
+    var fee=c.notional*(lockFeeLeg()*2)/10000;
+    if(both){                                        // khoá thành công
+      var gross=c.notional*(c.sell.px-c.buy.px)/c.mid;
+      close(c,gross-fee,'khoá đủ hai chân', gross);
+      continue;
+    }
+    var one=c.buy.filled||c.sell.filled;
+    if(!one && now-c.t>LOCK.legMs*2){ LOCK.open.splice(i,1); continue; }  // không chân nào khớp -> huỷ, không mất gì
+    if(one && now-Math.max(c.buy.t,c.sell.t)>LOCK.legMs && px){
+      // chỉ khớp một chân -> còn tồn kho, đóng nốt bằng lệnh thị trường
+      var pnl;
+      if(c.buy.filled) pnl=c.notional*(px-c.buy.px)/c.mid;      // đang giữ hàng, bán ra
+      else             pnl=c.notional*(c.sell.px-px)/c.mid;     // đang thiếu hàng, mua bù
+      close(c, pnl-fee, 'chỉ khớp một chân — đóng bù', pnl);
+    }
+  }
+  function close(c,net,why,gross){
+    var k=LOCK.open.indexOf(c); if(k>=0) LOCK.open.splice(k,1);
+    c.net=net; c.gross=gross; c.why=why; c.closed=Date.now();
+    c.bp=net/c.notional*10000;
+    LOCK.cap+=net;                                   // lãi kép: vốn to dần
+    if(net>=0) LOCK.win++; else LOCK.loss++;
+    LOCK.grossBp+=c.bp;
+    LOCK.done.unshift(c); if(LOCK.done.length>60) LOCK.done.pop();
+    LOCK.eq.push(LOCK.cap); if(LOCK.eq.length>1500) LOCK.eq.shift();
+  }
+}
+function lockStats(){
+  var n=LOCK.win+LOCK.loss;
+  var hrs=LOCK.startTs? (Date.now()-LOCK.startTs)/3600000 : 0;
+  var rate= hrs>0.002? n/hrs : 0;
+  var ret= LOCK.cap/LOCK.cap0-1;
+  var perCycle= n? Math.pow(LOCK.cap/LOCK.cap0,1/n)-1 : 0;
+  var dbl= (perCycle>1e-9 && rate>0)? Math.log(2)/(Math.log(1+perCycle)*rate) : null;
+  return {n:n, rate:rate, ret:ret, perCycle:perCycle, dbl:dbl,
+          winRate: n? LOCK.win/n : 0, avgBp: n? LOCK.grossBp/n : 0, hrs:hrs};
+}
+function renderLock(){
+  var host=document.getElementById('lkStat'); if(!host) return;
+  var Q=LOCK.q, st=lockStats();
+  function bx(k,v,s,c){ return '<div class="msbox" style="border-left-color:'+(c||'var(--line)')+'">'+
+    '<div class="k">'+k+'</div><div class="v" style="color:'+(c||'var(--hi)')+'">'+v+'</div>'+
+    '<div class="s">'+s+'</div></div>'; }
+  var edgeCol = Q? (Q.edgeBp>=LOCK.bufBp?'var(--grn)':'var(--red)') : '#44586b';
+  host.innerHTML=
+    bx('CHÊNH LỆCH ĂN ĐƯỢC', Q? Q.edgeBp.toFixed(2)+'bp' : '–',
+       Q? ('spread gộp '+Q.spreadBp.toFixed(2)+'bp − phí maker '+(lockFeeLeg()*2).toFixed(2)+'bp') : 'chờ báo giá', edgeCol)+
+    bx('CHÂN MUA', Q? pxs(Q.buy.px) : '–', Q? ('treo ở bid '+EX[Q.buy.k].n) : '—', 'var(--grn)')+
+    bx('CHÂN BÁN', Q? pxs(Q.sell.px) : '–', Q? ('treo ở ask '+EX[Q.sell.k].n) : '—', 'var(--red)')+
+    bx('VỐN HIỆN TẠI', fmt(LOCK.cap),
+       (st.ret>=0?'+':'')+(st.ret*100).toFixed(3)+'% từ '+fmt(LOCK.cap0), st.ret>=0?'var(--grn)':'var(--red)')+
+    bx('VÒNG ĐÃ CHỐT', st.n+'', LOCK.win+' khoá / '+LOCK.loss+' lỗ · '+(st.winRate*100).toFixed(0)+'%','var(--cyn)')+
+    bx('MỖI VÒNG', (st.perCycle*100).toFixed(4)+'%',
+       st.rate? st.rate.toFixed(1)+' vòng/giờ' : 'chưa đủ thời gian','var(--amb)')+
+    bx('NHÂN ĐÔI VỐN', st.dbl? (st.dbl<48? st.dbl.toFixed(1)+' giờ' : (st.dbl/24).toFixed(1)+' ngày') : '–',
+       'theo nhịp hiện tại','var(--pnk)')+
+    bx('ĐANG TREO', LOCK.open.length+'/'+LOCK.maxOpen,
+       LOCK.open.filter(function(c){return c.buy.filled||c.sell.filled;}).length+' vòng đã khớp một chân','var(--hi)');
+
+  var o=document.getElementById('lkOpen');
+  if(o) o.innerHTML= LOCK.open.length? LOCK.open.map(function(c){
+      var s1=c.buy.filled?'✓':'…', s2=c.sell.filled?'✓':'…';
+      var col=(c.buy.filled!==c.sell.filled)?'var(--amb)':'var(--cyn)';
+      return '<div class="zr" style="border-left-color:'+col+'">'+
+        '<b>#'+c.id+' · '+fmt(c.notional)+'</b>'+
+        '<span>MUA '+s1+' '+pxs(c.buy.px)+' ('+EX[c.buy.ex].n+') · BÁN '+s2+' '+pxs(c.sell.px)+
+        ' ('+EX[c.sell.ex].n+') · khoá '+c.edgeBp.toFixed(2)+'bp · '+
+        Math.round((Date.now()-c.t)/1000)+'s</span></div>';
+    }).join('') : '<div style="font-size:8.5px;color:#3d5266">chưa treo vòng nào'+
+      (LOCK.on?' — đang chờ chênh lệch đủ lớn':' — máy đang TẮT')+'</div>';
+
+  var dn=document.getElementById('lkDone');
+  if(dn) dn.innerHTML= LOCK.done.length? ('<table class="msttab"><tr><th>VÒNG</th><th>VỐN VÒNG</th>'+
+      '<th>LÃI/LỖ</th><th>BP</th><th>KẾT QUẢ</th></tr>'+
+      LOCK.done.slice(0,10).map(function(c){
+        var col=c.net>=0?'var(--grn)':'var(--red)';
+        return '<tr><td>#'+c.id+'</td><td>'+fmt(c.notional)+'</td>'+
+          '<td style="color:'+col+'">'+(c.net>=0?'+':'')+c.net.toFixed(2)+'</td>'+
+          '<td style="color:'+col+'">'+c.bp.toFixed(2)+'</td>'+
+          '<td class="nt">'+c.why+'</td></tr>';
+      }).join('')+'</table>') : '<div style="font-size:8.5px;color:#3d5266">chưa có vòng nào chốt</div>';
+
+  // ---- máy tính nhị phân: LÊN + XUỐNG = 100 ----
+  var b=LOCK.bin, tot=b.up+b.dn, lockC=100-tot-b.fee;
+  var el=document.getElementById('lkBin');
+  if(el) el.innerHTML=
+    '<div class="mrow"><span>TỔNG HAI CHÂN</span><b style="color:'+(tot<100?'var(--grn)':'var(--red)')+'">'+
+      tot.toFixed(2)+' cent</b></div>'+
+    '<div class="mrow"><span>KHOÁ ĐƯỢC / HỢP ĐỒNG</span><b style="color:'+(lockC>0?'var(--grn)':'var(--red)')+'">'+
+      lockC.toFixed(2)+' cent</b></div>'+
+    '<div class="mrow"><span>LỢI NHUẬN VÒNG NÀY</span><b>'+ (lockC*b.qty/100).toFixed(2)+' $ trên '+
+      (tot*b.qty/100).toFixed(2)+' $ vốn</b></div>'+
+    '<div class="mrow"><span>TỈ SUẤT MỖI VÒNG</span><b>'+ (tot>0? (lockC/tot*100).toFixed(3):'0')+'%</b></div>'+
+    '<div class="mrow"><span>CHÂN CÒN LẠI PHẢI ≤</span><b>'+
+      Math.max(0,100-b.fee-b.up-0.01).toFixed(2)+' cent (để còn khoá ≥ 0.01)</b></div>'+
+    '<div class="mrow"><span>VỐN LŨY KẾ</span><b style="color:var(--grn)">'+fmt(b.cap)+
+      ' ('+((b.cap/b.cap0-1)*100).toFixed(2)+'%)</b></div>'+
+    '<div class="mrow"><span>SỐ VÒNG ĐÃ GHI</span><b>'+b.ledger.length+'</b></div>';
+}
+reg('lockeq',function(c,w,h){
+  c.clearRect(0,0,w,h);
+  var E=LOCK.eq;
+  if(E.length<2){ c.fillStyle='#3d5266'; c.font='9px monospace';
+    c.fillText('ĐƯỜNG VỐN LŨY KẾ — chưa có vòng nào chốt',8,h/2); return; }
+  var mn=Math.min.apply(null,E), mx=Math.max.apply(null,E);
+  if(mx-mn<1e-9){ mn-=1; mx+=1; }
+  var X=function(i){ return 4+i/(E.length-1)*(w-8); };
+  var Y=function(v){ return h-6-(v-mn)/(mx-mn)*(h-16); };
+  c.beginPath();
+  for(var i=0;i<E.length;i++){ var x=X(i),y=Y(E[i]); i?c.lineTo(x,y):c.moveTo(x,y); }
+  c.strokeStyle='#00e08a'; c.lineWidth=1.5; c.stroke();
+  c.lineTo(X(E.length-1),h); c.lineTo(X(0),h); c.closePath();
+  c.fillStyle='rgba(0,224,138,.08)'; c.fill();
+  c.strokeStyle='#26384a'; c.setLineDash([2,3]); c.beginPath();
+  c.moveTo(0,Y(LOCK.cap0)); c.lineTo(w,Y(LOCK.cap0)); c.stroke(); c.setLineDash([]);
+  c.fillStyle='#3d5266'; c.font='8px monospace';
+  c.fillText('VỐN '+fmt(LOCK.cap)+' · '+E.length+' vòng',6,11);
+});
+(function(){
+  function el(id){ return document.getElementById(id); }
+  var t=el('lkTog');
+  if(t) t.addEventListener('click',function(){
+    LOCK.on=!LOCK.on;
+    if(LOCK.on&&!LOCK.startTs) LOCK.startTs=Date.now();
+    t.textContent='MÁY KHOÁ · '+(LOCK.on?'ĐANG CHẠY':'TẮT'); t.className='tfb'+(LOCK.on?' on':'');
+    pushLog('KHOÁ CHÊNH LỆCH', LOCK.on? 'bật — treo hai chân khi chênh ≥ '+LOCK.bufBp+'bp' : 'tắt', null);
+  });
+  var r=el('lkReset');
+  if(r) r.addEventListener('click',function(){
+    LOCK.cap=LOCK.cap0; LOCK.open=[]; LOCK.done=[]; LOCK.eq=[]; LOCK.win=0; LOCK.loss=0;
+    LOCK.grossBp=0; LOCK.startTs=LOCK.on?Date.now():0; renderLock();
+  });
+  var m=el('lkMode');
+  if(m) m.addEventListener('change',function(e){
+    LOCK.mode=e.target.value;
+    el('lkMulti').style.display = LOCK.mode==='multi'?'':'none';
+    el('lkBinWrap').style.display = LOCK.mode==='bin'?'':'none';
+  });
+  function num(id,fn){ var e2=el(id); if(e2) e2.addEventListener('input',function(ev){ fn(+ev.target.value); renderLock(); }); }
+  num('lkCap',function(v){ LOCK.cap0=Math.max(100,v||10000); if(!LOCK.done.length) LOCK.cap=LOCK.cap0; });
+  num('lkPer',function(v){ LOCK.perPct=clamp(v||5,0.1,50); });
+  num('lkBuf',function(v){ LOCK.bufBp=Math.max(0,v||0); });
+  num('lkMk',function(v){ LOCK.makerBp=Math.max(0,v||0); });
+  num('lkLeg',function(v){ LOCK.legMs=Math.max(3,v||45)*1000; });
+  num('lkUp',function(v){ LOCK.bin.up=clamp(v||0,0,100); });
+  num('lkDn',function(v){ LOCK.bin.dn=clamp(v||0,0,100); });
+  num('lkQty',function(v){ LOCK.bin.qty=Math.max(1,v||1); });
+  num('lkFee',function(v){ LOCK.bin.fee=Math.max(0,v||0); });
+  var g=el('lkBinAdd');
+  if(g) g.addEventListener('click',function(){
+    var b=LOCK.bin, tot=b.up+b.dn, lockC=100-tot-b.fee;
+    if(lockC<=0){ pushLog('TỪ CHỐI','tổng hai chân '+tot.toFixed(2)+' cent — không khoá được lời',null); return; }
+    var profit=lockC*b.qty/100;
+    b.cap+=profit;
+    b.ledger.unshift({t:Date.now(),up:b.up,dn:b.dn,qty:b.qty,p:profit});
+    if(b.ledger.length>50) b.ledger.pop();
+    LOCK.eq.push(LOCK.cap); 
+    pushLog('KHOÁ '+lockC.toFixed(2)+' CENT', b.up+' + '+b.dn+' = '+tot.toFixed(2)+' · '+b.qty+' hợp đồng · +$'+profit.toFixed(2), profit);
+    renderLock();
+  });
+})();
+setInterval(function(){ try{ lockScan(); lockTick(); }catch(e){} },600);
+
+
+/* ==================================================================
+   CHI PHÍ THỰC & CÁCH TÍNH TP / SL
+   Chi phí một vòng lệnh (tính theo bp trên giá):
+     spread × hệ số kiểu vào lệnh  +  hoa hồng × 2 chiều
+     +  trượt giá × 2 chiều  +  swap/funding × thời gian giữ
+   R ròng =  (TP% − chi phí) / (SL% + chi phí)
+   Vì vậy TP KHÔNG được đặt cứng theo ATR, mà giải ngược từ chi phí:
+     SL  ≥ max(cấu trúc, k × chi phí, 0.6 ATR)
+     TP  ≥ R_tối_thiểu × (SL + chi phí) + chi phí
+   Cuối cùng kiểm tra TP có nằm trong TẦM VỚI của khung thời gian
+   (ATR × 1.7 × căn(số nến giữ lệnh)) hay không. Không tới được thì
+   báo rõ cần ATR bao nhiêu / giữ bao lâu / lên khung nào.
+   ================================================================== */
+var COST={ commBp:2, spreadMode:'auto', spreadBp:1.0, slipBp:0.5,
+           entry:'taker', swapMode:'funding', fundingBpDay:3, swapPts:0, holdMin:90 };
+var AUTO_TPSL=true, SL_COST_K=2.5, REACH_K=1.7;
+
+function spreadBpLive(){
+  var on=enabled(), bid=null, ask=null, i;
+  for(i=0;i<on.length;i++){
+    var q=S.quotes[on[i]];
+    if(!q||!(q.bid>0)||!(q.ask>q.bid)||Date.now()-q.ts>5000) continue;
+    if(bid==null||q.bid>bid) bid=q.bid;
+    if(ask==null||q.ask<ask) ask=q.ask;
+  }
+  if(bid==null||ask==null||ask<=bid) return null;
+  return (ask-bid)/((ask+bid)/2)*10000;
+}
+function costParts(){
+  var px=S.lastPx||0;
+  var spLive=spreadBpLive();
+  var sp=(COST.spreadMode==='auto' && spLive!=null)? spLive : COST.spreadBp;
+  var spMul = COST.entry==='maker'? 0.5 : 1.0;      // vào bằng lệnh chờ thì không trả spread lúc vào
+  var days=Math.max(0,COST.holdMin)/1440;
+  var swap;
+  if(COST.swapMode==='funding') swap=COST.fundingBpDay*days;
+  else swap= px? Math.abs(COST.swapPts)/px*10000*Math.floor(days) : 0;
+  var o={ spread:sp*spMul, comm:COST.commBp*2, slip:COST.slipBp*2, swap:swap,
+          spLive:spLive, auto:(COST.spreadMode==='auto'&&spLive!=null) };
+  o.total=o.spread+o.comm+o.slip+o.swap;
+  return o;
+}
+function feeSync(){ FEE_BP=costParts().total; return FEE_BP; }
+
+/* Giải TP/SL từ chi phí. Trả về giá SL/TP đã chỉnh + lý do + tầm với. */
+function solveTPSL(px,side,slPx,tpPx,A){
+  if(!px||!side) return null;
+  A=A||S.atr||px*0.001;
+  var c=feeSync()/10000;
+  var sl=Math.abs(px-slPx)/px, tp=Math.abs(tpPx-px)/px;
+  var o={adj:[], c:c, raw:{sl:sl,tp:tp}};
+  var oppDist=tp;
+  if(AUTO_TPSL){
+    var floor=Math.max(c*SL_COST_K, A*0.6/px);
+    if(sl<floor){ o.adj.push('nới SL lên '+(floor*100).toFixed(3)+'% giá — SL cũ chỉ '+
+      (sl*100).toFixed(3)+'%, không đủ '+SL_COST_K+'× chi phí'); sl=floor; }
+    var Rt=MIN_R*1.05;                       // chừa 5% biên để bộ lọc dùng dấu > vẫn qua
+    var tpMin=Rt*(sl+c)+c;
+    if(tp<tpMin){ o.adj.push('nới TP lên '+(tpMin*100).toFixed(3)+'% giá để R ròng đạt '+Rt.toFixed(2)+
+      ' (TP theo cấu trúc chỉ '+(tp*100).toFixed(3)+'%)'); tp=tpMin; o.beyond=(oppDist>0&&tpMin>oppDist*1.02); }
+  }
+  var tfm=SIG_TF||15, holdBars=Math.max(1,COST.holdMin/tfm);
+  var reach=(A/px)*REACH_K*Math.sqrt(holdBars);
+  o.reach=reach; o.viable=tp<=reach;
+  if(!o.viable){
+    o.needAtrPct = tp/(REACH_K*Math.sqrt(holdBars))*100;
+    o.needHoldMin= Math.ceil(Math.pow(tp/((A/px)*REACH_K),2)*tfm);
+    o.needTf     = Math.ceil(tfm*Math.pow(o.needAtrPct/((A/px)*100),2));
+  }
+  o.slPct=sl; o.tpPct=tp;
+  o.sl= side>0? px*(1-sl) : px*(1+sl);
+  o.tp= side>0? px*(1+tp) : px*(1-tp);
+  o.netR=(tp-c)/(sl+c);
+  o.rr=tp/sl;
+  return o;
+}
+function renderCost(){
+  var host=document.getElementById('cstBox'); if(!host) return;
+  var C=costParts(), px=S.lastPx||0;
+  var Areal=S.atr||0, A=Areal||px*0.001, est=!Areal;      // chưa đủ nến thì dùng ước tính 0.1% giá
+  var sol= px? solveTPSL(px,1,px*(1-0.0001),px*(1+0.0001),A) : null;
+  var atrPct=px? A/px*100 : 0;
+  function row(k,v,c){ return '<div class="mrow"><span>'+k+'</span><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b></div>'; }
+  var h=row('SPREAD'+(C.auto?' (đo thật)':' (nhập tay)'), C.spread.toFixed(2)+'bp')+
+        row('HOA HỒNG 2 CHIỀU', C.comm.toFixed(2)+'bp')+
+        row('TRƯỢT GIÁ 2 CHIỀU', C.slip.toFixed(2)+'bp')+
+        row('SWAP / FUNDING '+COST.holdMin+'p', C.swap.toFixed(2)+'bp'+
+            (COST.swapMode==='points'? ' (chỉ tính khi qua đêm)':''))+
+        row('TỔNG CHI PHÍ VÒNG', C.total.toFixed(2)+'bp = '+(C.total/100).toFixed(3)+'% giá','var(--amb)')+
+        row('ATR '+(SIG_TF||15)+'m'+(est?' (ước tính)':''), atrPct.toFixed(3)+'% giá · chi phí = '+
+            (atrPct? (C.total/100/atrPct).toFixed(2):'–')+' ATR', est?'var(--dim)':null);
+  if(sol){
+    h+='<div class="sechd2">BIÊN TỐI THIỂU ĐỂ KHÔNG LỖ PHÍ</div>'+
+       row('SL TỐI THIỂU', (sol.slPct*100).toFixed(3)+'% ('+(sol.slPct*px).toFixed(px>1000?1:4)+' giá)')+
+       row('TP TỐI THIỂU', (sol.tpPct*100).toFixed(3)+'% ('+(sol.tpPct*px).toFixed(px>1000?1:4)+' giá)')+
+       row('R RÒNG KHI ĐÓ', sol.netR.toFixed(2)+' · R thô '+sol.rr.toFixed(2),
+           sol.netR>=MIN_R?'var(--grn)':'var(--red)')+
+       row('TẦM VỚI '+COST.holdMin+'p', (sol.reach*100).toFixed(3)+'% giá',
+           sol.viable?'var(--grn)':'var(--red)');
+    if(!sol.viable)
+      h+='<div class="mblk">✕ khung '+(SIG_TF||15)+'m không đủ biên cho mức phí này<div style="color:#5b7186">'+
+         'cần ATR ≥ '+sol.needAtrPct.toFixed(3)+'% (nay '+atrPct.toFixed(3)+'%) · '+
+         'hoặc giữ lệnh ≥ '+sol.needHoldMin+' phút · hoặc chuyển khung tín hiệu lên ~'+sol.needTf+'m</div></div>';
+    else
+      h+='<div class="mblk ok">✓ với chi phí này, khung '+(SIG_TF||15)+'m vẫn đủ biên — TP/SL đã tự nới cho hợp lệ</div>';
+  }
+  host.innerHTML=h;
+}
+(function(){
+  function el(id){ return document.getElementById(id); }
+  function num(id,fn){ var e=el(id); if(e) e.addEventListener('input',function(ev){ fn(+ev.target.value); feeSync(); renderCost(); }); }
+  num('cstComm',function(v){ COST.commBp=Math.max(0,v||0); });
+  num('cstSpr', function(v){ COST.spreadBp=Math.max(0,v||0); });
+  num('cstSlip',function(v){ COST.slipBp=Math.max(0,v||0); });
+  num('cstSwap',function(v){ if(COST.swapMode==='funding') COST.fundingBpDay=v||0; else COST.swapPts=v||0; });
+  num('cstHold',function(v){ COST.holdMin=Math.max(5,v||90); });
+  var sm=el('cstSprMode');
+  if(sm) sm.addEventListener('change',function(e){ COST.spreadMode=e.target.value;
+    el('cstSpr').disabled=(COST.spreadMode==='auto'); feeSync(); renderCost(); });
+  var em=el('cstEntry');
+  if(em) em.addEventListener('change',function(e){ COST.entry=e.target.value; feeSync(); renderCost(); });
+  var wm=el('cstSwapMode');
+  if(wm) wm.addEventListener('change',function(e){ COST.swapMode=e.target.value;
+    el('cstSwapLb').textContent = COST.swapMode==='funding'? 'bp/ngày' : 'điểm/đêm';
+    el('cstSwap').value = COST.swapMode==='funding'? COST.fundingBpDay : COST.swapPts;
+    feeSync(); renderCost(); });
+  var at=el('cstAuto');
+  if(at) at.addEventListener('click',function(){
+    AUTO_TPSL=!AUTO_TPSL;
+    at.className='tfb'+(AUTO_TPSL?' on':'');
+    at.textContent='TỰ NỚI TP/SL THEO PHÍ · '+(AUTO_TPSL?'BẬT':'TẮT');
+    renderCost();
+  });
+})();
+
 /* ---------- khởi tạo phần mở rộng ---------- */
 (function(){
   try{ wsScan(); wsLoad(); wsBuild(); }catch(e){ console.error('[workspace]',e); }
   try{ renderStyTog(); renderVolTog(); }catch(e){}
   try{ renderMaster(); }catch(e){ console.error('[tổng hợp]',e); }
+  try{ renderLock(); }catch(e){ console.error('[khoá chênh]',e); }
+  try{ feeSync(); renderCost(); }catch(e){ console.error('[chi phí]',e); }
   setTimeout(function(){ try{ agvLoad(); }catch(e){} },2500);
 })();
 
