@@ -405,13 +405,19 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
         <div class="diagbox" id="diagbox" style="grid-column:auto"></div>
         <div class="sechd2">CHI PHÍ THỰC · CÁCH TÍNH TP/SL</div>
         <div class="lkrow">
-          <label>hoa hồng <input type="number" id="cstComm" value="2" step="0.5">bp/chiều</label>
+          <label>hoa hồng
+            <select id="cstCommMode" style="font-size:9px;padding:2px 3px">
+              <option value="dom" selected>biểu phí sàn lớn nhất</option>
+              <option value="manual">nhập tay</option>
+            </select></label>
+          <input type="number" id="cstComm" value="2" step="0.5" disabled>bp/chiều
           <label>trượt giá <input type="number" id="cstSlip" value="0.5" step="0.1">bp/chiều</label>
         </div>
         <div class="lkrow">
           <label>spread
             <select id="cstSprMode" style="font-size:9px;padding:2px 3px">
-              <option value="auto" selected>đo từ sổ lệnh</option>
+              <option value="dom" selected>của sàn lớn nhất</option>
+              <option value="auto">gộp các sàn</option>
               <option value="manual">nhập tay</option>
             </select></label>
           <input type="number" id="cstSpr" value="1" step="0.1" disabled>bp
@@ -423,10 +429,11 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
         </div>
         <div class="lkrow">
           <label><select id="cstSwapMode" style="font-size:9px;padding:2px 3px">
-              <option value="funding" selected>funding</option>
-              <option value="points">swap CFD</option>
+              <option value="live" selected>funding thật của sàn lớn nhất</option>
+              <option value="funding">funding nhập tay</option>
+              <option value="points">swap CFD điểm/đêm</option>
             </select>
-            <input type="number" id="cstSwap" value="3" step="0.5"><span id="cstSwapLb">bp/ngày</span></label>
+            <input type="number" id="cstSwap" value="3" step="0.5" disabled><span id="cstSwapLb">bp/ngày</span></label>
           <label>giữ lệnh <input type="number" id="cstHold" value="90" step="15">phút</label>
         </div>
         <div class="lkrow"><span class="tfb on" id="cstAuto">TỰ NỚI TP/SL THEO PHÍ · BẬT</span></div>
@@ -912,6 +919,7 @@ function onTrade(ex,px,qty,side,ts){
   try{ fpTick(px,n,side==='buy',ts); }catch(e){}
   try{ agvLive(ex,px,qty,ts); }catch(e){}
   try{ lockOnPrint(ex,px,side==='buy'); }catch(e){}
+  try{ exVolTick(ex,px*qty); }catch(e){}
   S.prints.push({p:px,n:n,b:side==='buy',ex:ex,t:ts||Date.now()});
   if(S.prints.length>520) S.prints.shift();
   S.tpsWin.push(Date.now());
@@ -2701,11 +2709,13 @@ function resetLab(){
 
 document.getElementById('feeSel').addEventListener('change',function(e){
   var v=+e.target.value;
+  COST.commMode='manual';
+  var cmEl=document.getElementById('cstCommMode'); if(cmEl) cmEl.value='manual';
   if(v<=4){ COST.commBp=2;  COST.slipBp=0.2; COST.entry='maker'; }
   else if(v<=10){ COST.commBp=5;  COST.slipBp=0.5; COST.entry='taker'; }
   else if(v<=20){ COST.commBp=10; COST.slipBp=1.0; COST.entry='taker'; }
   else { COST.commBp=10; COST.slipBp=3.0; COST.entry='taker'; }
-  var cc=document.getElementById('cstComm'); if(cc) cc.value=COST.commBp;
+  var cc=document.getElementById('cstComm'); if(cc){ cc.value=COST.commBp; cc.disabled=false; }
   var cs=document.getElementById('cstSlip'); if(cs) cs.value=COST.slipBp;
   var ce=document.getElementById('cstEntry'); if(ce) ce.value=COST.entry;
   feeSync(); resetLab(); try{ renderCost(); }catch(e2){}
@@ -6021,11 +6031,76 @@ setInterval(function(){ try{ lockScan(); lockTick(); }catch(e){} },600);
    (ATR × 1.7 × căn(số nến giữ lệnh)) hay không. Không tới được thì
    báo rõ cần ATR bao nhiêu / giữ bao lâu / lên khung nào.
    ================================================================== */
-var COST={ commBp:2, spreadMode:'auto', spreadBp:1.0, slipBp:0.5,
-           entry:'taker', swapMode:'funding', fundingBpDay:3, swapPts:0, holdMin:90 };
+var COST={ commBp:2, commMode:'dom', spreadMode:'dom', spreadBp:1.0, slipBp:0.5,
+           entry:'taker', swapMode:'live', fundingBpDay:3, swapPts:0, holdMin:90 };
+
+/* Biểu phí spot tiêu chuẩn từng sàn, bp mỗi chiều (tk = thị trường, mk = lệnh chờ).
+   Đây là bậc phí gốc chưa giảm giá; ai có bậc VIP thì chuyển sang nhập tay. */
+var EXFEE={
+  binance:{tk:10,mk:10}, bybit:{tk:10,mk:10}, okx:{tk:10,mk:8},
+  gate:{tk:20,mk:20},    bitget:{tk:10,mk:10}, mexc:{tk:5,mk:0},
+  kraken:{tk:26,mk:16},  coinbase:{tk:60,mk:40}, bitfinex:{tk:20,mk:10},
+  hyper:{tk:4.5,mk:1.5}, kucoin:{tk:10,mk:10}
+};
+/* Khối lượng khớp thật từng sàn, cửa sổ ~2 phút — dùng để biết sàn nào lớn nhất */
+var EXVOL={};
+function exVolTick(ex,usd){
+  var m=Math.floor(Date.now()/60000);
+  var e=EXVOL[ex]||(EXVOL[ex]={m:m,v:0,prev:0});
+  if(e.m!==m){ e.prev=e.v; e.m=m; e.v=0; }
+  e.v+=usd;
+}
+function exVol2(k){ var e=EXVOL[k]; return e? e.v+e.prev : 0; }
+function exShare(k){ var t=0; EXK.forEach(function(x){ t+=exVol2(x); }); return t? exVol2(k)/t : 0; }
+function domEx(){
+  var best=null;
+  EXK.forEach(function(k){
+    if(!EX[k].on||!SYM[k]) return;
+    var v=exVol2(k); if(!best||v>best.v) best={k:k,v:v};
+  });
+  if(best&&best.v>0) return best.k;
+  var bd=null;                                   // chưa có lệnh khớp -> lấy sàn sổ dày nhất
+  EXK.forEach(function(k){
+    if(!EX[k].on||!SYM[k]) return;
+    var bk=bookOf(k); if(!bk||!bk.b||!bk.b.length) return;
+    var d=0; bk.b.forEach(function(l){ d+=l[0]*l[1]; });
+    if(!bd||d>bd.d) bd={k:k,d:d};
+  });
+  return bd? bd.k : (SYM.binance? 'binance' : (enabled()[0]||'binance'));
+}
+function spreadBpOf(k){
+  var q=S.quotes[k];
+  if(!q||!(q.bid>0)||!(q.ask>q.bid)||Date.now()-q.ts>5000) return null;
+  return (q.ask-q.bid)/((q.ask+q.bid)/2)*10000;
+}
+/* Funding thật của sàn lớn nhất, quy ra bp mỗi ngày (3 kỳ 8 tiếng) */
+var FUND={rate:null, ex:null, ts:0, err:null};
+function fundingLoad(){
+  var k=domEx(), u=null;
+  if(k==='bybit'&&SYM.bybit)
+    u={k:k,url:'https://api.bybit.com/v5/market/tickers?category=linear&symbol='+SYM.bybit,
+       p:function(j){ return +j.result.list[0].fundingRate; }};
+  else if(k==='okx'&&SYM.okx)
+    u={k:k,url:'https://www.okx.com/api/v5/public/funding-rate?instId='+SYM.okx+'-SWAP',
+       p:function(j){ return +j.data[0].fundingRate; }};
+  else if(k==='bitget'&&SYM.bitget)
+    u={k:k,url:'https://api.bitget.com/api/v2/mix/market/current-fund-rate?symbol='+SYM.bitget+'&productType=USDT-FUTURES',
+       p:function(j){ return +j.data[0].fundingRate; }};
+  else if(SYM.binance)
+    u={k:'binance',url:'https://fapi.binance.com/fapi/v1/premiumIndex?symbol='+SYM.binance,
+       p:function(j){ return +j.lastFundingRate; }};
+  if(!u){ FUND.rate=null; FUND.err='cặp này không có hợp đồng vĩnh cửu'; return; }
+  jget(u.url).then(function(j){
+    var r=u.p(j);
+    if(isFinite(r)){ FUND.rate=r; FUND.ex=u.k; FUND.ts=Date.now(); FUND.err=null; }
+    else { FUND.rate=null; FUND.err='dữ liệu funding không đọc được'; }
+  }).catch(function(){ FUND.rate=null; FUND.err='không gọi được funding'; });
+}
+setInterval(function(){ try{ fundingLoad(); }catch(e){} }, 300000);
+setTimeout(function(){ try{ fundingLoad(); }catch(e){} }, 4000);
 var AUTO_TPSL=true, SL_COST_K=2.5, REACH_K=1.7;
 
-function spreadBpLive(){
+function spreadBpLive(){                    // spread gộp: bid cao nhất / ask thấp nhất
   var on=enabled(), bid=null, ask=null, i;
   for(i=0;i<on.length;i++){
     var q=S.quotes[on[i]];
@@ -6037,16 +6112,26 @@ function spreadBpLive(){
   return (ask-bid)/((ask+bid)/2)*10000;
 }
 function costParts(){
-  var px=S.lastPx||0;
-  var spLive=spreadBpLive();
-  var sp=(COST.spreadMode==='auto' && spLive!=null)? spLive : COST.spreadBp;
-  var spMul = COST.entry==='maker'? 0.5 : 1.0;      // vào bằng lệnh chờ thì không trả spread lúc vào
-  var days=Math.max(0,COST.holdMin)/1440;
-  var swap;
-  if(COST.swapMode==='funding') swap=COST.fundingBpDay*days;
-  else swap= px? Math.abs(COST.swapPts)/px*10000*Math.floor(days) : 0;
-  var o={ spread:sp*spMul, comm:COST.commBp*2, slip:COST.slipBp*2, swap:swap,
-          spLive:spLive, auto:(COST.spreadMode==='auto'&&spLive!=null) };
+  var px=S.lastPx||0, dom=domEx();
+  var spDom=spreadBpOf(dom), spLive=spreadBpLive(), spSrc;
+  var sp;
+  if(COST.spreadMode==='dom' && spDom!=null){ sp=spDom; spSrc='sàn lớn nhất'; }
+  else if(COST.spreadMode==='auto' && spLive!=null){ sp=spLive; spSrc='gộp các sàn'; }
+  else if(COST.spreadMode!=='manual' && spLive!=null){ sp=spLive; spSrc='gộp (tạm thay)'; }
+  else { sp=COST.spreadBp; spSrc='nhập tay'; }
+  var spMul = COST.entry==='maker'? 0.5 : 1.0;    // vào bằng lệnh chờ thì không trả spread lúc vào
+  var fee=EXFEE[dom], perSide;
+  if(COST.commMode==='dom' && fee) perSide=fee[COST.entry==='maker'?'mk':'tk'];
+  else perSide=COST.commBp;
+  var days=Math.max(0,COST.holdMin)/1440, swap, swSrc;
+  if(COST.swapMode==='live'){
+    if(FUND.rate!=null){ swap=Math.abs(FUND.rate)*3*10000*days; swSrc='funding thật '+(EX[FUND.ex]?EX[FUND.ex].n:''); }
+    else { swap=COST.fundingBpDay*days; swSrc='funding nhập tay (chưa lấy được)'; }
+  } else if(COST.swapMode==='funding'){ swap=COST.fundingBpDay*days; swSrc='funding nhập tay'; }
+  else { swap= px? Math.abs(COST.swapPts)/px*10000*Math.floor(days) : 0; swSrc='swap CFD điểm/đêm'; }
+  var o={ spread:sp*spMul, comm:perSide*2, slip:COST.slipBp*2, swap:swap,
+          dom:dom, perSide:perSide, spSrc:spSrc, swSrc:swSrc,
+          spDom:spDom, spLive:spLive, share:exShare(dom) };
   o.total=o.spread+o.comm+o.slip+o.swap;
   return o;
 }
@@ -6091,10 +6176,16 @@ function renderCost(){
   var sol= px? solveTPSL(px,1,px*(1-0.0001),px*(1+0.0001),A) : null;
   var atrPct=px? A/px*100 : 0;
   function row(k,v,c){ return '<div class="mrow"><span>'+k+'</span><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b></div>'; }
-  var h=row('SPREAD'+(C.auto?' (đo thật)':' (nhập tay)'), C.spread.toFixed(2)+'bp')+
-        row('HOA HỒNG 2 CHIỀU', C.comm.toFixed(2)+'bp')+
+  var h=row('SÀN THAM CHIẾU', EX[C.dom].n+' · '+(C.share*100).toFixed(0)+'% khối lượng',
+            EX[C.dom].c)+
+        row('SPREAD ('+C.spSrc+')', C.spread.toFixed(2)+'bp'+
+            (C.spDom!=null&&C.spLive!=null? ' · gộp '+C.spLive.toFixed(2)+'bp':''))+
+        row('HOA HỒNG 2 CHIỀU', C.comm.toFixed(2)+'bp · '+C.perSide.toFixed(2)+'bp/chiều'+
+            (COST.commMode==='dom'? ' (biểu phí '+EX[C.dom].n+')':' (nhập tay)'))+
         row('TRƯỢT GIÁ 2 CHIỀU', C.slip.toFixed(2)+'bp')+
-        row('SWAP / FUNDING '+COST.holdMin+'p', C.swap.toFixed(2)+'bp'+
+        row('SWAP / FUNDING '+COST.holdMin+'p', C.swap.toFixed(2)+'bp · '+C.swSrc+
+            (COST.swapMode==='live'&&FUND.rate!=null?
+              ' ('+(FUND.rate>=0?'+':'')+(FUND.rate*100).toFixed(4)+'%/8h)':'')+
             (COST.swapMode==='points'? ' (chỉ tính khi qua đêm)':''))+
         row('TỔNG CHI PHÍ VÒNG', C.total.toFixed(2)+'bp = '+(C.total/100).toFixed(3)+'% giá','var(--amb)')+
         row('ATR '+(SIG_TF||15)+'m'+(est?' (ước tính)':''), atrPct.toFixed(3)+'% giá · chi phí = '+
@@ -6126,13 +6217,22 @@ function renderCost(){
   num('cstHold',function(v){ COST.holdMin=Math.max(5,v||90); });
   var sm=el('cstSprMode');
   if(sm) sm.addEventListener('change',function(e){ COST.spreadMode=e.target.value;
-    el('cstSpr').disabled=(COST.spreadMode==='auto'); feeSync(); renderCost(); });
+    el('cstSpr').disabled=(COST.spreadMode!=='manual'); feeSync(); renderCost(); });
+  var cm=el('cstCommMode');
+  if(cm) cm.addEventListener('change',function(e){ COST.commMode=e.target.value;
+    var inp=el('cstComm'); inp.disabled=(COST.commMode==='dom');
+    if(COST.commMode==='dom'){ var f=EXFEE[domEx()]; if(f) inp.value=f[COST.entry==='maker'?'mk':'tk']; }
+    feeSync(); renderCost(); });
   var em=el('cstEntry');
-  if(em) em.addEventListener('change',function(e){ COST.entry=e.target.value; feeSync(); renderCost(); });
+  if(em) em.addEventListener('change',function(e){ COST.entry=e.target.value;
+    if(COST.commMode==='dom'){ var f=EXFEE[domEx()]; if(f) el('cstComm').value=f[COST.entry==='maker'?'mk':'tk']; }
+    feeSync(); renderCost(); });
   var wm=el('cstSwapMode');
   if(wm) wm.addEventListener('change',function(e){ COST.swapMode=e.target.value;
-    el('cstSwapLb').textContent = COST.swapMode==='funding'? 'bp/ngày' : 'điểm/đêm';
-    el('cstSwap').value = COST.swapMode==='funding'? COST.fundingBpDay : COST.swapPts;
+    el('cstSwapLb').textContent = COST.swapMode==='points'? 'điểm/đêm' : 'bp/ngày';
+    el('cstSwap').value = COST.swapMode==='points'? COST.swapPts : COST.fundingBpDay;
+    el('cstSwap').disabled = (COST.swapMode==='live');
+    if(COST.swapMode==='live') fundingLoad();
     feeSync(); renderCost(); });
   var at=el('cstAuto');
   if(at) at.addEventListener('click',function(){
