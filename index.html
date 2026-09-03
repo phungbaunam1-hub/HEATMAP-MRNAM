@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CLAUDE × QUANT — MULTI-VENUE TERMINAL</title>
+<title>Mr_NamP × QUANT — CONSOLIDATED ORDER BOOK</title>
 <style>
 :root{
   --bg:#04070b;--panel:#080d13;--panel2:#0b1219;--line:#16212d;--line2:#101a24;
@@ -303,7 +303,7 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
 .lyb.on{border-color:var(--amb);box-shadow:0 0 7px #ffb01f33}
 .lyb i{background:#26384a;border-radius:1px;display:block;min-width:0;min-height:0}
 .lyb.on i{background:var(--amb)}
-.ws{display:grid;gap:6px;height:calc(100vh - 132px);min-height:520px}
+.ws{display:grid;gap:6px;height:calc(100vh - 172px);min-height:460px}
 .pane{border:1px solid var(--line);border-radius:3px;background:var(--panel);
   display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
 .pane.max{position:fixed;inset:6px;z-index:9999;box-shadow:0 0 0 9999px rgba(4,7,11,.94)}
@@ -318,14 +318,76 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
 .pbtn:hover{color:var(--amb);border-color:var(--amb)}
 @media(max-width:980px){ .ws{grid-template-columns:1fr !important;grid-template-rows:none !important;height:auto}
   .pane{grid-area:auto !important;height:420px} }
+
+/* ================= SỬA TRÀN NGANG / CHỒNG KHUNG =================
+   Ô lưới mặc định có min-width:auto nên bảng nhiều cột đẩy toàn trang
+   rộng ra và các mục đè lên nhau. Ép mọi ô lưới co được về 0. */
+html{overflow-x:hidden;max-width:100%}
+.grid{grid-template-columns:repeat(12,minmax(0,1fr))}
+.grid>*,.ws>*,.mst>*,.sbgrid>*,.lkgrid>*,.chgrid>*,.hmgrid>*,.tpogrid>*,.msgrid>*{min-width:0}
+.p,.paneb,.pane{min-width:0}
+.mst{grid-template-columns:minmax(0,1fr) minmax(0,330px)}
+.sbgrid{grid-template-columns:minmax(0,1fr) minmax(0,320px)}
+.lkgrid{grid-template-columns:minmax(0,1fr) minmax(0,300px)}
+.lkboxes{min-width:0}
+
+/* bảng dài thì cuộn trong khung của nó, không đẩy cả trang */
+#mstTbl,#sbProb,#lkDone,#lkOpen,#exStat,#stratTable,#icTable{overflow-x:auto;max-width:100%}
+.msttab{width:100%;table-layout:fixed}
+.msttab th,.msttab td{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.msttab td.nt{font-size:7.5px;line-height:1.4}
+@media(max-width:1500px){ .msttab td.nt,.msttab th:last-child{display:none} }
+
+/* dòng nhãn – giá trị: nhãn không co, giá trị xuống dòng trong ô của nó */
+.mrow{align-items:flex-start}
+.mrow span{flex:0 0 auto;max-width:52%}
+.mrow b{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;white-space:normal}
+
+/* thanh tiêu đề và thanh bố cục không được đẩy ngang */
+.ph{min-width:0}
+.ph h2{white-space:normal;overflow-wrap:anywhere}
+.tags{min-width:0;justify-content:flex-end}
+.wsbar{overflow-x:auto;flex-wrap:nowrap}
+.lkrow{min-width:0}
+.lkrow input[type=text]{min-width:0}
+.mstdec,.mblk,.lknote{overflow-wrap:anywhere}
+
+/* khối trên cùng: luôn dính, luôn cùng một bố cục dù đang ở chế độ nào */
+.topwrap{position:sticky;top:-6px;z-index:60;background:var(--bg);
+  padding:6px 0 4px;margin:-6px 0 6px;border-bottom:1px solid var(--line)}
+.topwrap .top,.topwrap .tape,.topwrap .wsbar{margin-bottom:5px}
+.topwrap .wsbar{margin-bottom:0}
+.top{flex-wrap:wrap;row-gap:5px}
+.venues{flex-wrap:wrap}
+
+/* trong ô chia màn hình: tiêu đề đã nằm ở thanh chọn của ô, không lặp lại */
+.paneb>.p>.ph h2{display:none}
+.paneb>.p>.ph{padding:3px 6px}
+.paneb>.p>.ph .tags{margin-left:0}
+.paneb>.p{min-height:100%}
+
+/* cột phụ của chart / heatmap / TPO cũng phải co được, và gập lại khi hẹp */
+.chgrid{grid-template-columns:minmax(0,1fr) minmax(0,320px) minmax(0,300px)}
+.hmgrid{grid-template-columns:minmax(0,1fr) minmax(0,244px)}
+.tpogrid{grid-template-columns:minmax(0,1fr) minmax(0,262px)}
+@media(max-width:1280px){
+  .chgrid{grid-template-columns:minmax(0,1fr) minmax(0,300px)}
+}
+@media(max-width:1000px){
+  .chgrid,.hmgrid,.tpogrid,.mst,.sbgrid,.lkgrid{grid-template-columns:minmax(0,1fr)}
+}
+/* trong ô chia màn hình thì luôn xếp dọc cho khỏi bóp méo */
+.paneb .chgrid,.paneb .hmgrid,.paneb .tpogrid,.paneb .mst,.paneb .sbgrid,.paneb .lkgrid{
+  grid-template-columns:minmax(0,1fr)}
 </style>
 </head>
 <body>
 
+<div class="topwrap">
 <div class="top">
-  <div class="logo">Q</div>
+  <div class="logo">N</div>
   <div>
-    <div class="brand">CLAUDE <span>×</span> QUANT</div>
+    <div class="brand">Mr_NamP <span>×</span> QUANT</div>
     <div class="sub">MULTI-VENUE · CONSOLIDATED BOOK · PAPER EXECUTION</div>
   </div>
   <select id="symSel"></select>
@@ -345,6 +407,8 @@ input[type=color]{width:22px;height:15px;border:1px solid var(--line);background
   <button class="btn" id="wsFull">TOÀN MÀN HÌNH</button>
   <span class="lb">mỗi ô chọn biểu đồ riêng · ⛶ phóng to một ô · Esc thoát</span>
 </div>
+</div><!-- /topwrap -->
+
 <div class="ws" id="ws" style="display:none"></div>
 
 <div class="grid" id="grid">
@@ -6639,7 +6703,7 @@ var OUT={on:false, url:'', token:'', fmt:'mt5', sym:'', lot:0.01, magic:770077,
          dry:true, log:[], sent:0, fail:0};
 function outPayload(ev){
   var d=MST.dec||{}, e=evalTrade(ev.side>0?1:-1)||{};
-  var base={ v:1, ts:Date.now(), source:'CLAUDE-QUANT', book:'SIGNAL_BOOK',
+  var base={ v:1, ts:Date.now(), source:'MRNAMP-QUANT', book:'SIGNAL_BOOK',
     id:(PM.pos?PM.pos.id:'x')+'-'+ev.action,
     symbol:SYM.id, mt5symbol:OUT.sym||SYM.id.replace('USDT','USD'),
     action:ev.action, side: ev.side>0?'BUY':'SELL',
